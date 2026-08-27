@@ -2,29 +2,69 @@ const fs = require('fs');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 
-function ts() {
-  return new Date().toISOString();
+const ROOT = path.resolve(__dirname);
+
+// ---------------------------------------------------------------------------
+// Boot-Logger: Erzeugt die Log-Datei SOFORT (synchron) und schreibt ab der
+// allerersten Zeile hinein - unabhängig davon, ob der Sync oder die Erst-
+// installation schon lief. So sind auch Crashs und der Zustand vor dem ersten
+// Sync nachvollziehbar. Der Logger ist selbst-enthaltend (keine Abhängigkeit
+// von src/logger.js), damit er immer funktioniert.
+// ---------------------------------------------------------------------------
+
+const LOG_ENV = String(process.env.LOG_FILE || 'logs/sync.log');
+// Einzig erlaubter Zielpfad: immer unter ROOT (keine Pfad-Traversale).
+const LOG_FILE = LOG_ENV.startsWith('/') || /^[A-Za-z]:[\\/]/.test(LOG_ENV)
+  ? path.join(ROOT, '.logs', 'sync.log')
+  : path.join(ROOT, LOG_ENV);
+
+try {
+  fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true });
+} catch (_) {}
+
+function writeToFile(chunk) {
+  try {
+    fs.appendFileSync(LOG_FILE, chunk);
+  } catch (_) {}
 }
 
-// Eingebauter Fallback-Logger, damit sync.js auch startet, bevor src/logger.js
-// per Erstinstallation heruntergeladen wurde.
-let logger;
-try {
-  logger = require('./src/logger');
-} catch (_) {
-  logger = {
-    info: (...a) => console.log(`[${ts()}] [INFO]`, ...a),
-    warn: (...a) => console.warn(`[${ts()}] [WARN]`, ...a),
-    error: (...a) => console.error(`[${ts()}] [ERROR]`, ...a),
-  };
+function safeString(v) {
+  try {
+    return v && v.stack ? v.stack : String(v);
+  } catch (_) {
+    return '<unprintable>';
+  }
 }
+
+function emit(level, args) {
+  const line = `[${new Date().toISOString()}] [${level}] ${args.map((a) => (typeof a === 'string' ? a : safeString(a))).join(' ')}`;
+  writeToFile(line + '\n');
+  if (level === 'ERROR') console.error(line);
+  else if (level === 'WARN') console.warn(line);
+  else console.log(line);
+}
+
+const logger = {
+  info: (...a) => emit('INFO', a),
+  warn: (...a) => emit('WARN', a),
+  error: (...a) => emit('ERROR', a),
+};
+
+process.on('uncaughtException', (err) => {
+  writeToFile(`[${new Date().toISOString()}] [FATAL] ${(err && err.stack) || err}\n`);
+  console.error(`[FATAL] ${(err && err.stack) || err}`);
+  process.exit(1);
+});
+process.on('unhandledRejection', (reason) => {
+  writeToFile(`[${new Date().toISOString()}] [UNHANDLED] ${(reason && reason.stack) || reason}\n`);
+  console.error(`[UNHANDLED] ${(reason && reason.stack) || reason}`);
+});
 
 const OWNER = 'teamluan';
 const REPO = 'BWW';
 const BRANCH = 'main';
 const API = 'https://api.github.com';
 const RAW = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/`;
-const ROOT = path.resolve(__dirname);
 const SHA_FILE = path.join(ROOT, '.deploy-sha');
 const SKIP_DIRS = new Set(['.git', '.github', 'node_modules', 'logs', 'data', 'backups']);
 const SKIP_FILES = new Set(['.env', '.env.local', '.deploy-sha', '.gitignore', 'sync.js']);
@@ -259,8 +299,17 @@ function startBot() {
   botProcess = spawn('node', ['src/index.js'], {
     cwd: ROOT,
     env: process.env,
-    stdio: 'inherit',
+    stdio: ['ignore', 'pipe', 'pipe'],
   });
+  const forward = (stream) => {
+    if (!stream) return;
+    stream.on('data', (buf) => {
+      const text = buf.toString();
+      writeToFile(text.endsWith('\n') ? text : text + '\n');
+    });
+  };
+  forward(botProcess.stdout);
+  forward(botProcess.stderr);
   botProcess.on('exit', (code, signal) => {
     logger.info(`Bot-Prozess beendet (code=${code}, signal=${signal})`);
     botProcess = null;
