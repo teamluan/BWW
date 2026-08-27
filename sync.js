@@ -183,6 +183,8 @@ let errorCount = 0;
 let intervalHandle = null;
 let botProcess = null;
 let initializing = false;
+let restartDelay = 1000;
+let stopping = false;
 
 const status = {
   enabled: false,
@@ -294,6 +296,7 @@ async function tick() {
 
 function stopBot() {
   if (botProcess && !botProcess.killed) {
+    stopping = true;
     logger.info('Stoppe Bot...');
     botProcess.kill('SIGTERM');
     botProcess = null;
@@ -302,6 +305,7 @@ function stopBot() {
 
 function startBot() {
   logger.info('Starte Bot (node src/index.js)...');
+  stopping = false;
   botProcess = spawn('node', ['src/index.js'], {
     cwd: ROOT,
     env: process.env,
@@ -319,6 +323,15 @@ function startBot() {
   botProcess.on('exit', (code, signal) => {
     logger.info(`Bot-Prozess beendet (code=${code}, signal=${signal})`);
     botProcess = null;
+    // Nach einem unerwarteten Absturz automatisch neu starten (mit Backoff).
+    if (!stopping && process.exitCode !== 0) {
+      logger.warn(`Bot unerwartet beendet – starte in ${Math.round(restartDelay / 1000)}s neu…`);
+      const delay = restartDelay;
+      restartDelay = Math.min(restartDelay * 2, 60000);
+      setTimeout(() => {
+        if (!stopping) startBot();
+      }, delay);
+    }
   });
   botProcess.on('error', (err) => {
     logger.error('Bot-Fehler:', err.message);
