@@ -3,6 +3,12 @@
   "version": "1.0.0",
   "description": "Discord bot for BWW with embeds, welcome, verify and role-based command permissions.",
   "main": "src/index.js",
-  "scripts": {"start": "node src/index.js"},
-  "dependencies": {"discord.js": "^14.21.0", "dotenv": "^16.6.1"}
+  "scripts": {
+    "start": "node sync.js",
+    "bot": "node src/index.js"
+  },
+  "dependencies": {
+    "discord.js": "^14.21.0",
+    "dotenv": "^16.6.1"
+  }
 }
