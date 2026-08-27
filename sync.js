@@ -2,6 +2,12 @@ const fs = require('fs');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 
+// Lädt .env (AUTO_UPDATE, DISCORD_TOKEN, LOG_FILE …), damit sync.js dieselben
+// Werte sieht wie der Bot. Sicherer Fallback, falls dotenv nicht installiert ist.
+try {
+  require('dotenv').config();
+} catch (_) {}
+
 const ROOT = path.resolve(__dirname);
 
 // ---------------------------------------------------------------------------
@@ -67,7 +73,7 @@ const API = 'https://api.github.com';
 const RAW = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/`;
 const SHA_FILE = path.join(ROOT, '.deploy-sha');
 const SKIP_DIRS = new Set(['.git', '.github', 'node_modules', 'logs', 'data', 'backups']);
-const SKIP_FILES = new Set(['.env', '.env.local', '.deploy-sha', '.gitignore', 'sync.js']);
+const SKIP_FILES = new Set(['.env', '.env.local', '.deploy-sha', '.gitignore', 'sync.js', 'logs']);
 
 const ENABLED = process.env.AUTO_UPDATE === 'true';
 const INTERVAL_MS = Number(process.env.AUTO_UPDATE_INTERVAL_MS) || 120000;
