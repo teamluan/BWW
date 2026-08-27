@@ -1,7 +1,23 @@
 const fs = require('fs');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
-const logger = require('./src/logger');
+
+function ts() {
+  return new Date().toISOString();
+}
+
+// Eingebauter Fallback-Logger, damit sync.js auch startet, bevor src/logger.js
+// per Erstinstallation heruntergeladen wurde.
+let logger;
+try {
+  logger = require('./src/logger');
+} catch (_) {
+  logger = {
+    info: (...a) => console.log(`[${ts()}] [INFO]`, ...a),
+    warn: (...a) => console.warn(`[${ts()}] [WARN]`, ...a),
+    error: (...a) => console.error(`[${ts()}] [ERROR]`, ...a),
+  };
+}
 
 const OWNER = 'teamluan';
 const REPO = 'BWW';
