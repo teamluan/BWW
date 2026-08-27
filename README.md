@@ -25,37 +25,50 @@ Der Bot benötigt mindestens die Discord-Berechtigungen `View Channels`, `Send M
 
 ---
 
-# Auto-Sync auf KataBump
+# Auto-Update auf KataBump
 
-`sync.js` prüft alle **2 Minuten** per `git fetch`, ob sich `main` geändert hat.
-Bei neuem Commit wird per `git pull --ff-only` aktualisiert, Abhängigkeiten installiert
-und der Bot neu gestartet. Sonst wird 2 Minuten gewartet und erneut geprüft.
+`sync.js` ist der Startpunkt (eine Startdatei): Es startet den Bot (`node src/index.js`)
+als Kindprozess und aktualisiert den Code automatisch über die **GitHub-API** — ganz ohne
+lokales git. Es vergleicht den letzten Commit (`base...main`) und lädt nur die geänderten
+Dateien als Raw-Download herunter, entfernt gelöschte Dateien und startet nach einem Update neu.
 
-## Einrichtung (eine Startdatei)
+## Aktivierung (env-gesteuert)
 
-Das App-Verzeichnis auf KataBump muss eine **echte git-Clone** des Repos sein
-(damit `pull` funktioniert). In den KataBump-Settings:
+In den Umgebungsvariablen (oder `.env`):
 
-1. **Startdatei = `sync.js`** (die einzige Datei, die gestartet wird).
+```dotenv
+AUTO_UPDATE=true
+AUTO_UPDATE_INTERVAL_MS=120000   # Standard 2 Minuten
+```
+
+- `AUTO_UPDATE=true` → Auto-Update aktiv.
+- `AUTO_UPDATE_INTERVAL_MS` → Prüf-Intervall in Millisekunden.
+
+## Einrichtung auf KataBump
+
+1. **Startdatei = `sync.js`** (die einzige gestartete Datei).
 2. `DISCORD_TOKEN` als Umgebungsvariable setzen.
-3. Server starten.
+3. `AUTO_UPDATE=true` setzen.
+4. Server starten.
 
-`sync.js` startet den Bot (`node src/index.js`) im selben Verzeichnis als Kindprozess
-und hält ihn bei jedem Sync am Laufen.
+Beim ersten Start installiert `sync.js` alle Repo-Dateien (Erstinstallation) und startet den Bot.
+Ab dann läuft die Endlos-Schleife über die API.
 
 ## Ablauf pro Zyklus
 
 ```
-Warten (2 Min)
-  └─ git fetch origin main
-       ├─ geändert? → git pull --ff-only + npm install + Bot-Neustart
-       └─ unverändert → warten (2 Min) → erneut prüfen
+Warten (Intervall, Standard 2 Min)
+  └─ GitHub-API: compare {letzter SHA}...main
+       ├─ geändert? → geänderte Dateien laden + npm install (falls package.json) + Neustart
+       └─ unverändert → warten → erneut prüfen
 ```
 
 ## Hinweise
 
-- Benötigt **git**, `node` und `npm` auf dem Server.
-- `.env` und `config/config.json` sind in `.gitignore` → bleiben bei jedem Pull erhalten.
-- Liegen lokale (getrackte) Änderungen vor, wird der Pull übersprungen (kein `reset --hard`).
+- Kein `git` auf dem Server nötig — nur `node`, `npm` und Internet.
+- `.env`, `config/config.json`, `.deploy-sha` und `sync.js` selbst werden nie überschrieben.
+  Darum bleiben Tokens und lokale Konfiguration erhalten.
+- Der Stand wird in `.deploy-sha` gespeichert (letzter angewendeter Commit).
+- Nach 5 Fehlern deaktiviert sich das Auto-Update selbst (Logs prüfen).
 - Der Bot nutzt **keine Datenbank und kein Dashboard** — der gesamte Zustand liegt in
   `config/config.json` auf der Platte.
