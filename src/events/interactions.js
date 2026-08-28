@@ -4,7 +4,7 @@ const { save } = require('../config');
 const { verifyMessage } = require('../utils/embeds');
 const { documentMenu, documentForValue } = require('../utils/documents');
 const { ticketPanel, createTicket, TICKET_REASONS } = require('../utils/tickets');
-const { loadGiveaways, saveGiveaways, giveawayMessage, startGiveaway } = require('../utils/giveaway');
+const { loadGiveaways, saveGiveaways, giveawayMessage, startGiveaway, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage } = require('../utils/giveaway');
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral };
 
@@ -25,18 +25,44 @@ module.exports = async (interaction, client) => {
     return;
   }
 
-  if (interaction.isButton() && interaction.customId.startsWith('bww_giveaway_join_')) {
-    const id = interaction.customId.replace('bww_giveaway_join_', '');
+  if (interaction.isButton() && interaction.customId.startsWith('bww_giveaway_')) {
+    const id = interaction.customId.split('_').slice(3).join('_');
+    const action = interaction.customId.replace(`bww_giveaway_${id}`, '').replace(/_$/, '');
     const list = loadGiveaways();
-    const g = list.find(x => x.id === id && x.active);
-    if (!g) return interaction.reply({ content: '❌ Dieses Giveaway ist bereits beendet.', ...EPHEMERAL });
-    if (g.entries.includes(interaction.user.id)) return interaction.reply({ content: '❌ Du nimmst bereits teil.', ...EPHEMERAL });
-    g.entries.push(interaction.user.id);
-    saveGiveaways(list);
-    await interaction.reply({ content: '🎉 Du nimmst jetzt am Giveaway teil!', ...EPHEMERAL });
-    const channel = client.channels.cache.get(g.channelId);
-    if (channel) channel.messages.fetch(g.messageId).then(msg => msg.edit(giveawayMessage(g))).catch(() => {});
-    return;
+    const g = list.find(x => x.id === id);
+
+    if (action === 'join') {
+      if (!g || !g.active) return interaction.reply({ content: '❌ Dieses Giveaway ist bereits beendet.', ...EPHEMERAL });
+      if (g.entries.includes(interaction.user.id)) return interaction.reply({ content: '❌ Du nimmst bereits teil.', ...EPHEMERAL });
+      g.entries.push(interaction.user.id);
+      saveGiveaways(list);
+      await updateGiveawayMessage(client, g);
+      return interaction.reply({ content: '🎉 Du nimmst jetzt am Giveaway teil!', ...EPHEMERAL });
+    }
+
+    if (action === 'leave') {
+      if (!g || !g.active) return interaction.reply({ content: '❌ Dieses Giveaway ist bereits beendet.', ...EPHEMERAL });
+      const idx = g.entries.indexOf(interaction.user.id);
+      if (idx === -1) return interaction.reply({ content: '❌ Du nimmst nicht an diesem Giveaway teil.', ...EPHEMERAL });
+      g.entries.splice(idx, 1);
+      saveGiveaways(list);
+      await updateGiveawayMessage(client, g);
+      return interaction.reply({ content: '👋 Du hast das Giveaway verlassen.', ...EPHEMERAL });
+    }
+
+    if (action === 'end' || action === 'reroll') {
+      if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst das Giveaway nicht verwalten.', ...EPHEMERAL });
+      if (action === 'end') {
+        if (!g || !g.active) return interaction.reply({ content: '❌ Dieses Giveaway ist bereits beendet.', ...EPHEMERAL });
+        g.endTime = Date.now() - 1;
+        const winners = await finalizeGiveaway(client, g);
+        saveGiveaways(list);
+        return interaction.reply({ content: winners.length ? `✅ Giveaway beendet. Gewinner: ${winners.map(w => `<@${w}>`).join(', ')}` : '✅ Giveaway beendet. Keine Teilnehmer.', ...EPHEMERAL });
+      } else {
+        const res = await rerollGiveaway(client, id);
+        return interaction.reply({ content: res.ok ? `🔁 Neu gezogen: ${res.winners.map(w => `<@${w}>`).join(', ')}` : `❌ ${res.error}`, ...EPHEMERAL });
+      }
+    }
   }
 
   if (interaction.isButton() && interaction.customId.startsWith('bww_doc_')) {
@@ -90,6 +116,56 @@ module.exports = async (interaction, client) => {
 
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
 
+  if (command === 'kick') {
+    const member = interaction.options.getMember('user');
+    const reason = interaction.options.getString('grund') || 'Kein Grund angegeben';
+    if (!member) return interaction.reply({ content: '❌ Mitglied nicht gefunden.', ...EPHEMERAL });
+    if (!member.kickable) return interaction.reply({ content: '❌ Ich kann dieses Mitglied nicht kicken.', ...EPHEMERAL });
+    try { await member.kick(reason); } catch { return interaction.reply({ content: '❌ Kick fehlgeschlagen.', ...EPHEMERAL }); }
+    return interaction.reply({ content: `👢 ${member.user.tag} wurde gekickt.\n**Grund:** ${reason}`, ...EPHEMERAL });
+  }
+  if (command === 'ban') {
+    const user = interaction.options.getUser('user');
+    const reason = interaction.options.getString('grund') || 'Kein Grund angegeben';
+    if (!user) return interaction.reply({ content: '❌ Benutzer nicht gefunden.', ...EPHEMERAL });
+    try { await interaction.guild.bans.create(user.id, { reason }); } catch { return interaction.reply({ content: '❌ Ban fehlgeschlagen.', ...EPHEMERAL }); }
+    return interaction.reply({ content: `🔨 ${user.tag} wurde gebannt.\n**Grund:** ${reason}`, ...EPHEMERAL });
+  }
+  if (command === 'unban') {
+    const user = interaction.options.getUser('user');
+    if (!user) return interaction.reply({ content: '❌ Benutzer nicht gefunden.', ...EPHEMERAL });
+    try { await interaction.guild.bans.remove(user.id); } catch { return interaction.reply({ content: '❌ Unban fehlgeschlagen (war der User gebannt?).', ...EPHEMERAL }); }
+    return interaction.reply({ content: `✅ ${user.tag} wurde entbannt.`, ...EPHEMERAL });
+  }
+  if (command === 'timeout') {
+    const member = interaction.options.getMember('user');
+    const minutes = interaction.options.getInteger('dauer');
+    const reason = interaction.options.getString('grund') || 'Kein Grund angegeben';
+    if (!member) return interaction.reply({ content: '❌ Mitglied nicht gefunden.', ...EPHEMERAL });
+    if (!member.moderatable) return interaction.reply({ content: '❌ Ich kann dieses Mitglied nicht pausieren.', ...EPHEMERAL });
+    const ms = minutes * 60 * 1000;
+    try { await member.timeout(ms, reason); } catch { return interaction.reply({ content: '❌ Timeout fehlgeschlagen.', ...EPHEMERAL }); }
+    return interaction.reply({ content: `⏰ ${member.user.tag} wurde für ${minutes} Minute(n) pausiert.\n**Grund:** ${reason}`, ...EPHEMERAL });
+  }
+  if (command === 'giverole') {
+    const member = interaction.options.getMember('user');
+    const role = interaction.options.getRole('rolle');
+    if (!member) return interaction.reply({ content: '❌ Mitglied nicht gefunden.', ...EPHEMERAL });
+    if (!role) return interaction.reply({ content: '❌ Rolle nicht gefunden.', ...EPHEMERAL });
+    if (member.roles.cache.has(role.id)) return interaction.reply({ content: '❌ Der User hat die Rolle bereits.', ...EPHEMERAL });
+    try { await member.roles.add(role); } catch { return interaction.reply({ content: '❌ Rolle konnte nicht vergeben werden.', ...EPHEMERAL }); }
+    return interaction.reply({ content: `✅ ${member.user.tag} hat die Rolle ${role} erhalten.`, ...EPHEMERAL });
+  }
+  if (command === 'removerole') {
+    const member = interaction.options.getMember('user');
+    const role = interaction.options.getRole('rolle');
+    if (!member) return interaction.reply({ content: '❌ Mitglied nicht gefunden.', ...EPHEMERAL });
+    if (!role) return interaction.reply({ content: '❌ Rolle nicht gefunden.', ...EPHEMERAL });
+    if (!member.roles.cache.has(role.id)) return interaction.reply({ content: '❌ Der User hat diese Rolle nicht.', ...EPHEMERAL });
+    try { await member.roles.remove(role); } catch { return interaction.reply({ content: '❌ Rolle konnte nicht entfernt werden.', ...EPHEMERAL }); }
+    return interaction.reply({ content: `✅ ${member.user.tag} wurde die Rolle ${role} entfernt.`, ...EPHEMERAL });
+  }
+
   if (command === 'nachricht') {
     const embed = new EmbedBuilder().setColor(0x2f3136).setDescription(interaction.options.getString('text', true)).setTimestamp();
     const image = interaction.options.getString('bild');
@@ -124,7 +200,9 @@ module.exports = async (interaction, client) => {
       '`/setup-verify` → Verify\n' +
       '`/setup-ticket` [kategorie] [rolle] → Ticket\n' +
       '`/setup-permission` → Command-Berechtigungen\n' +
-      '`/restart` → Bot neu starten\n\n' +
+      '`/restart` → Bot neu starten\n' +
+      '`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n' +
+      '`/giverole`, `/removerole` → Rollen\n\n' +
       '**Welcome-Platzhalter:**\n' +
       '`{user}` → Ping\n`{username}` → Name\n`{displayname}` → Server-Nickname\n' +
       '`{server}` → Servername\n`{id}` → User-ID\n`{count}` → Mitgliederzahl\n\n' +
