@@ -17,6 +17,30 @@ const commands = [
     { name: 'gewinner', description: 'Anzahl Gewinner (Standard: 1)', type: 4, required: false }
   ]},
   { name: 'restart', description: 'Startet den Bot neu (Admin).' },
+  { name: 'kick', description: 'Kickt ein Mitglied.', options: [
+    { name: 'user', description: 'Mitglied', type: 6, required: true },
+    { name: 'grund', description: 'Grund', type: 3, required: false }
+  ]},
+  { name: 'ban', description: 'Bannt einen Benutzer.', options: [
+    { name: 'user', description: 'Benutzer', type: 6, required: true },
+    { name: 'grund', description: 'Grund', type: 3, required: false }
+  ]},
+  { name: 'unban', description: 'Entbannt einen Benutzer.', options: [
+    { name: 'user', description: 'Benutzer', type: 6, required: true }
+  ]},
+  { name: 'timeout', description: 'Pausiert ein Mitglied für eine Dauer.', options: [
+    { name: 'user', description: 'Mitglied', type: 6, required: true },
+    { name: 'dauer', description: 'Dauer in Minuten', type: 4, required: true },
+    { name: 'grund', description: 'Grund', type: 3, required: false }
+  ]},
+  { name: 'giverole', description: 'Gibt einem Mitglied eine Rolle.', options: [
+    { name: 'user', description: 'Mitglied', type: 6, required: true },
+    { name: 'rolle', description: 'Rolle', type: 8, required: true }
+  ]},
+  { name: 'removerole', description: 'Entfernt einem Mitglied eine Rolle.', options: [
+    { name: 'user', description: 'Mitglied', type: 6, required: true },
+    { name: 'rolle', description: 'Rolle', type: 8, required: true }
+  ]},
   { name: 'setup-welcome', description: 'Welcome-System konfigurieren.', options: [
     { name: 'channel', description: 'Welcome-Channel', type: 7, required: true, channel_types: [0] },
     { name: 'text', description: 'Welcome-Text; Platzhalter siehe /setup', type: 3, required: true },
@@ -34,7 +58,9 @@ const commands = [
   { name: 'setup-permission', description: 'Rollenberechtigung für Commands setzen.', options: [
     { name: 'command', description: 'Command', type: 3, required: true, choices: [
       { name: 'nachricht', value: 'nachricht' }, { name: 'setup', value: 'setup' }, { name: 'verify', value: 'verify' },
-      { name: 'nachrichtauswahl', value: 'nachrichtauswahl' }, { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'restart', value: 'restart' }
+      { name: 'nachrichtauswahl', value: 'nachrichtauswahl' }, { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'restart', value: 'restart' },
+      { name: 'kick', value: 'kick' }, { name: 'ban', value: 'ban' }, { name: 'unban', value: 'unban' }, { name: 'timeout', value: 'timeout' },
+      { name: 'giverole', value: 'giverole' }, { name: 'removerole', value: 'removerole' }
     ]},
     { name: 'role', description: 'Rolle', type: 8, required: true },
     { name: 'erlauben', description: 'true = erlauben, false = entfernen', type: 5, required: true }
