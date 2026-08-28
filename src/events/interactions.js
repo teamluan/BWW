@@ -80,6 +80,13 @@ module.exports = async (interaction, client) => {
     return interaction.reply({ content: `✅ Rolle ${role} für /${name} ${allow ? 'erlaubt' : 'entfernt'}.`, ...EPHEMERAL });
   }
 
+  if (command === 'restart') {
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen den Bot neu starten.', ...EPHEMERAL });
+    await interaction.reply({ content: '🔄 Bot wird neu gestartet…', ...EPHEMERAL });
+    setTimeout(() => process.exit(0), 1000);
+    return;
+  }
+
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
 
   if (command === 'nachricht') {
@@ -114,7 +121,8 @@ module.exports = async (interaction, client) => {
       '`/setup-welcome` [channel] [text] [title?] → Welcome\n' +
       '`/setup-verify` → Verify\n' +
       '`/setup-ticket` [kategorie] [rolle] → Ticket\n' +
-      '`/setup-permission` → Command-Berechtigungen\n\n' +
+      '`/setup-permission` → Command-Berechtigungen\n' +
+      '`/restart` → Bot neu starten\n\n' +
       '**Welcome-Platzhalter:**\n' +
       '`{user}` → Ping\n`{username}` → Name\n`{displayname}` → Server-Nickname\n' +
       '`{server}` → Servername\n`{id}` → User-ID\n`{count}` → Mitgliederzahl\n\n' +
