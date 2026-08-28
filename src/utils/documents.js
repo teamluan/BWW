@@ -1,4 +1,4 @@
-const { EmbedBuilder, ActionRowBuilder, StringSelectMenuBuilder, StringSelectMenuOptionBuilder, MessageFlags } = require('discord.js');
+const { EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 
 const DOCUMENTS = [
   {
@@ -45,37 +45,42 @@ const DOCUMENTS = [
   }
 ];
 
-function documentMenu() {
+// Discord erlaubt maximal 5 Buttons pro ActionRow.
+const BUTTONS_PER_ROW = 5;
+
+// Erzeugt das Panel mit Buttons (statt Select-Menü). Optionaler Einleitungstext
+// wird am Anfang des Embeds angezeigt.
+function documentMenu(introText) {
+  const descriptionParts = [];
+  if (introText) descriptionParts.push(introText + '\n\n');
+  descriptionParts.push(
+    'Drücke auf den Button des Dokuments, das du anzeigen möchtest.\n\n' +
+    '**Verfügbare Dokumente:**\n' +
+    DOCUMENTS.map(d => `${d.emoji} ${d.label}`).join('\n')
+  );
+
   const embed = new EmbedBuilder()
     .setTitle('🗂️ Allgemeine-Dokumente')
     .setColor(0x2f3136)
-    .setDescription(
-      'Du suchst ein bestimmtes Dokument?\n\n' +
-      'Wähle unten aus, welches Dokument du dir anschauen möchtest.\n\n' +
-      '**📄 Dokument auswählen**\n' +
-      'Nutze das Auswahlmenü, um ein Dokument auszuwählen.\n' +
-      'Anschließend werden dir die entsprechenden Informationen angezeigt.\n\n' +
-      '**Verfügbare Dokumente:**\n' +
-      DOCUMENTS.map(d => `${d.emoji} ${d.label}`).join('\n') +
-      '\n\nWähle unten ein Dokument aus 👇'
-    )
+    .setDescription(descriptionParts.join(''))
     .setTimestamp();
 
-  const select = new StringSelectMenuBuilder()
-    .setCustomId('bww_doc_select')
-    .setPlaceholder('📄 Dokument auswählen')
-    .addOptions(
-      DOCUMENTS.map(d =>
-        new StringSelectMenuOptionBuilder()
+  const rows = [];
+  for (let i = 0; i < DOCUMENTS.length; i += BUTTONS_PER_ROW) {
+    const chunk = DOCUMENTS.slice(i, i + BUTTONS_PER_ROW);
+    const row = new ActionRowBuilder().addComponents(
+      chunk.map(d =>
+        new ButtonBuilder()
+          .setCustomId(`bww_doc_${d.value}`)
           .setLabel(d.label)
-          .setValue(d.value)
           .setEmoji(d.emoji)
-          .setDescription(`Zeigt ${d.label} an`)
+          .setStyle(ButtonStyle.Secondary)
       )
     );
+    rows.push(row);
+  }
 
-  const row = new ActionRowBuilder().addComponents(select);
-  return { embeds: [embed], components: [row] };
+  return { embeds: [embed], components: rows };
 }
 
 function documentForValue(value) {
