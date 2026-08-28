@@ -7,7 +7,9 @@ const commands = [
   ]},
   { name: 'setup', description: 'Zeigt die Setup-Hilfe.' },
   { name: 'verify', description: 'Sendet das konfigurierte Verify-System.' },
-  { name: 'nachrichtauswahl', description: 'Sendet das Dokumenten-Auswahl-Menü.' },
+  { name: 'nachrichtauswahl', description: 'Sendet das Dokumenten-Auswahl-Menü.', options: [
+    { name: 'text', description: 'Optionaler Einleitungstext am Anfang', type: 3, required: false }
+  ]},
   { name: 'ticket', description: 'Sendet das Ticket-Panel.' },
   { name: 'giveaway', description: 'Startet ein Giveaway.', options: [
     { name: 'preis', description: 'Was wird verlost?', type: 3, required: true },
