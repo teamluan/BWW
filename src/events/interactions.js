@@ -39,8 +39,9 @@ module.exports = async (interaction, client) => {
     return;
   }
 
-  if (interaction.isStringSelectMenu() && interaction.customId === 'bww_doc_select') {
-    const doc = documentForValue(interaction.values[0]);
+  if (interaction.isButton() && interaction.customId.startsWith('bww_doc_')) {
+    const value = interaction.customId.replace('bww_doc_', '');
+    const doc = documentForValue(value);
     if (!doc) return interaction.reply({ content: '❌ Dokument nicht gefunden.', ...EPHEMERAL });
     const embed = new EmbedBuilder().setColor(0x2f3136).setDescription(doc.text).setTimestamp();
     return interaction.reply({ embeds: [embed], ...EPHEMERAL });
@@ -97,7 +98,8 @@ module.exports = async (interaction, client) => {
     return interaction.reply({ content: '✅ Embed gesendet.', ...EPHEMERAL });
   }
   if (command === 'nachrichtauswahl') {
-    await interaction.channel.send(documentMenu());
+    const intro = interaction.options.getString('text') || undefined;
+    await interaction.channel.send(documentMenu(intro));
     return interaction.reply({ content: '✅ Dokumenten-Auswahl gesendet.', ...EPHEMERAL });
   }
   if (command === 'ticket') {
@@ -108,7 +110,7 @@ module.exports = async (interaction, client) => {
     const prize = interaction.options.getString('preis', true);
     const winners = Math.max(1, interaction.options.getInteger('gewinner') || 1);
     const durationMs = interaction.options.getInteger('dauer') * 1000 || 60000;
-    await startGiveaway(interaction.channel, prize, durationMs, winners);
+    const g = await startGiveaway(interaction.channel, prize, durationMs, winners);
     return interaction.reply({ content: '✅ Giveaway gestartet!', ...EPHEMERAL });
   }
   if (command === 'verify') {
