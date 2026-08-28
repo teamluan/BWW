@@ -20,7 +20,7 @@ module.exports = async interaction => {
   if (command.startsWith('setup-')) {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen das Setup ändern.', ephemeral: true });
     if (command === 'setup-welcome') {
-      config.welcome = { enabled: true, channelId: interaction.options.getChannel('channel').id, message: interaction.options.getString('text', true) };
+      config.welcome = { enabled: true, channelId: interaction.options.getChannel('channel').id, title: interaction.options.getString('title') || '', message: interaction.options.getString('text', true) };
       save(config); return interaction.reply({ content: '✅ Welcome-System gespeichert.', ephemeral: true });
     }
     if (command === 'setup-verify') {
@@ -52,7 +52,15 @@ module.exports = async interaction => {
     return interaction.reply({ content: '✅ Verify-Panel gesendet.', ephemeral: true });
   }
   if (command === 'setup') {
-    const embed = new EmbedBuilder().setTitle('BWW Setup').setColor(0x2f3136).setDescription('`/setup-welcome` → Welcome\n`/setup-verify` → Verify\n`/setup-permission` → Command-Berechtigungen\n\nWelcome-Platzhalter: `{user}`, `{username}`, `{server}`');
+    const embed = new EmbedBuilder().setTitle('BWW Setup').setColor(0x2f3136).setDescription(
+      '`/setup-welcome` [channel] [text] [title?] → Welcome\n' +
+      '`/setup-verify` → Verify\n' +
+      '`/setup-permission` → Command-Berechtigungen\n\n' +
+      '**Welcome-Platzhalter:**\n' +
+      '`{user}` → Ping\n`{username}` → Name\n`{displayname}` → Server-Nickname\n' +
+      '`{server}` → Servername\n`{id}` → User-ID\n`{count}` → Mitgliederzahl\n\n' +
+      'Der Avatar des Users erscheint automatisch oben rechts.'
+    );
     return interaction.reply({ embeds: [embed], ephemeral: true });
   }
 };
