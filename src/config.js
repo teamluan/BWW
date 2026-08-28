@@ -6,6 +6,7 @@ const file = path.join(dir, 'config.json');
 const defaults = {
   welcome: { enabled: false, channelId: '', title: '', message: 'Willkommen {user} auf dem Server! 🎉' },
   verify: { enabled: false, channelId: '', message: 'Klicke auf den Button, um dich zu verifizieren.', roleId: '' },
+  ticket: { enabled: false, categoryId: '', roleId: '' },
   permissions: {}
 };
 
