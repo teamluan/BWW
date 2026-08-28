@@ -9,7 +9,8 @@ const commands = [
   { name: 'verify', description: 'Sendet das konfigurierte Verify-System.' },
   { name: 'setup-welcome', description: 'Welcome-System konfigurieren.', options: [
     { name: 'channel', description: 'Welcome-Channel', type: 7, required: true, channel_types: [0] },
-    { name: 'text', description: 'Welcome-Text; {user} wird gepingt.', type: 3, required: true }
+    { name: 'text', description: 'Welcome-Text; Platzhalter siehe /setup', type: 3, required: true },
+    { name: 'title', description: 'Optionaler endloser Titel des Embeds', type: 3, required: false }
   ]},
   { name: 'setup-verify', description: 'Verify-System konfigurieren.', options: [
     { name: 'channel', description: 'Verify-Channel', type: 7, required: true, channel_types: [0] },
