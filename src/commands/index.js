@@ -7,6 +7,7 @@ const commands = [
   ]},
   { name: 'setup', description: 'Zeigt die Setup-Hilfe.' },
   { name: 'verify', description: 'Sendet das konfigurierte Verify-System.' },
+  { name: 'nachrichtauswahl', description: 'Sendet das Dokumenten-Auswahl-Menü.' },
   { name: 'setup-welcome', description: 'Welcome-System konfigurieren.', options: [
     { name: 'channel', description: 'Welcome-Channel', type: 7, required: true, channel_types: [0] },
     { name: 'text', description: 'Welcome-Text; Platzhalter siehe /setup', type: 3, required: true },
