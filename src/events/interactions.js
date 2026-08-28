@@ -3,10 +3,12 @@ const { isAllowed } = require('../commands');
 const { save } = require('../config');
 const { verifyMessage } = require('../utils/embeds');
 const { documentMenu, documentForValue } = require('../utils/documents');
+const { ticketPanel, createTicket, TICKET_REASONS } = require('../utils/tickets');
+const { loadGiveaways, saveGiveaways, giveawayMessage, startGiveaway } = require('../utils/giveaway');
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral };
 
-module.exports = async interaction => {
+module.exports = async (interaction, client) => {
   const config = require('../config').load();
 
   if (interaction.isButton() && interaction.customId === 'bww_verify') {
@@ -17,11 +19,38 @@ module.exports = async interaction => {
     return interaction.reply({ content: '✅ Du wurdest erfolgreich verifiziert.', ...EPHEMERAL });
   }
 
+  if (interaction.isButton() && interaction.customId === 'bww_ticket_close') {
+    await interaction.reply({ content: '🔒 Ticket wird geschlossen und gelöscht…', ...EPHEMERAL });
+    setTimeout(() => interaction.channel.delete().catch(() => {}), 2000);
+    return;
+  }
+
+  if (interaction.isButton() && interaction.customId.startsWith('bww_giveaway_join_')) {
+    const id = interaction.customId.replace('bww_giveaway_join_', '');
+    const list = loadGiveaways();
+    const g = list.find(x => x.id === id && x.active);
+    if (!g) return interaction.reply({ content: '❌ Dieses Giveaway ist bereits beendet.', ...EPHEMERAL });
+    if (g.entries.includes(interaction.user.id)) return interaction.reply({ content: '❌ Du nimmst bereits teil.', ...EPHEMERAL });
+    g.entries.push(interaction.user.id);
+    saveGiveaways(list);
+    await interaction.reply({ content: '🎉 Du nimmst jetzt am Giveaway teil!', ...EPHEMERAL });
+    const channel = client.channels.cache.get(g.channelId);
+    if (channel) channel.messages.fetch(g.messageId).then(msg => msg.edit(giveawayMessage(g))).catch(() => {});
+    return;
+  }
+
   if (interaction.isStringSelectMenu() && interaction.customId === 'bww_doc_select') {
     const doc = documentForValue(interaction.values[0]);
     if (!doc) return interaction.reply({ content: '❌ Dokument nicht gefunden.', ...EPHEMERAL });
     const embed = new EmbedBuilder().setColor(0x2f3136).setDescription(doc.text).setTimestamp();
     return interaction.reply({ embeds: [embed], ...EPHEMERAL });
+  }
+
+  if (interaction.isStringSelectMenu() && interaction.customId === 'bww_ticket_select') {
+    const reason = TICKET_REASONS.find(r => r.value === interaction.values[0]);
+    const res = await createTicket(interaction.guild, config, interaction.user, reason ? reason.label : interaction.values[0]);
+    if (!res.ok) return interaction.reply({ content: `❌ ${res.error}`, ...EPHEMERAL });
+    return interaction.reply({ content: `✅ Ticket erstellt: ${res.channel}`, ...EPHEMERAL });
   }
 
   if (!interaction.isChatInputCommand()) return;
@@ -36,6 +65,10 @@ module.exports = async interaction => {
     if (command === 'setup-verify') {
       config.verify = { enabled: true, channelId: interaction.options.getChannel('channel').id, roleId: interaction.options.getRole('role').id, message: interaction.options.getString('text', true) };
       save(config); return interaction.reply({ content: '✅ Verify-System gespeichert.', ...EPHEMERAL });
+    }
+    if (command === 'setup-ticket') {
+      config.ticket = { enabled: true, categoryId: interaction.options.getChannel('kategorie').id, roleId: interaction.options.getRole('rolle').id };
+      save(config); return interaction.reply({ content: '✅ Ticket-System gespeichert.', ...EPHEMERAL });
     }
     const name = interaction.options.getString('command', true);
     const role = interaction.options.getRole('role');
@@ -60,6 +93,17 @@ module.exports = async interaction => {
     await interaction.channel.send(documentMenu());
     return interaction.reply({ content: '✅ Dokumenten-Auswahl gesendet.', ...EPHEMERAL });
   }
+  if (command === 'ticket') {
+    await interaction.channel.send(ticketPanel(config));
+    return interaction.reply({ content: '✅ Ticket-Panel gesendet.', ...EPHEMERAL });
+  }
+  if (command === 'giveaway') {
+    const prize = interaction.options.getString('preis', true);
+    const winners = Math.max(1, interaction.options.getInteger('gewinner') || 1);
+    const durationMs = interaction.options.getInteger('dauer') * 1000 || 60000;
+    await startGiveaway(interaction.channel, prize, durationMs, winners);
+    return interaction.reply({ content: '✅ Giveaway gestartet!', ...EPHEMERAL });
+  }
   if (command === 'verify') {
     config.verify.channelId = interaction.channelId; config.verify.enabled = true; save(config);
     await interaction.channel.send(verifyMessage(config));
@@ -69,6 +113,7 @@ module.exports = async interaction => {
     const embed = new EmbedBuilder().setTitle('BWW Setup').setColor(0x2f3136).setDescription(
       '`/setup-welcome` [channel] [text] [title?] → Welcome\n' +
       '`/setup-verify` → Verify\n' +
+      '`/setup-ticket` [kategorie] [rolle] → Ticket\n' +
       '`/setup-permission` → Command-Berechtigungen\n\n' +
       '**Welcome-Platzhalter:**\n' +
       '`{user}` → Ping\n`{username}` → Name\n`{displayname}` → Server-Nickname\n' +
