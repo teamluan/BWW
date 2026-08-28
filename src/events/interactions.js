@@ -2,6 +2,7 @@ const { EmbedBuilder, PermissionFlagsBits, MessageFlags } = require('discord.js'
 const { isAllowed } = require('../commands');
 const { save } = require('../config');
 const { verifyMessage } = require('../utils/embeds');
+const { documentMenu, documentForValue } = require('../utils/documents');
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral };
 
@@ -14,6 +15,13 @@ module.exports = async interaction => {
     if (!role) return interaction.reply({ content: '❌ Die Verifizierungsrolle existiert nicht mehr.', ...EPHEMERAL });
     try { await interaction.member.roles.add(role); } catch { return interaction.reply({ content: '❌ Ich konnte die Rolle nicht vergeben. Prüfe meine Rollenposition.', ...EPHEMERAL }); }
     return interaction.reply({ content: '✅ Du wurdest erfolgreich verifiziert.', ...EPHEMERAL });
+  }
+
+  if (interaction.isStringSelectMenu() && interaction.customId === 'bww_doc_select') {
+    const doc = documentForValue(interaction.values[0]);
+    if (!doc) return interaction.reply({ content: '❌ Dokument nicht gefunden.', ...EPHEMERAL });
+    const embed = new EmbedBuilder().setColor(0x2f3136).setDescription(doc.text).setTimestamp();
+    return interaction.reply({ embeds: [embed], ...EPHEMERAL });
   }
 
   if (!interaction.isChatInputCommand()) return;
@@ -47,6 +55,10 @@ module.exports = async interaction => {
     if (image) embed.setImage(image);
     await interaction.channel.send({ embeds: [embed] });
     return interaction.reply({ content: '✅ Embed gesendet.', ...EPHEMERAL });
+  }
+  if (command === 'nachrichtauswahl') {
+    await interaction.channel.send(documentMenu());
+    return interaction.reply({ content: '✅ Dokumenten-Auswahl gesendet.', ...EPHEMERAL });
   }
   if (command === 'verify') {
     config.verify.channelId = interaction.channelId; config.verify.enabled = true; save(config);
