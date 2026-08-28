@@ -14,6 +14,7 @@ const commands = [
     { name: 'dauer', description: 'Dauer in Sekunden', type: 4, required: true },
     { name: 'gewinner', description: 'Anzahl Gewinner (Standard: 1)', type: 4, required: false }
   ]},
+  { name: 'restart', description: 'Startet den Bot neu (Admin).' },
   { name: 'setup-welcome', description: 'Welcome-System konfigurieren.', options: [
     { name: 'channel', description: 'Welcome-Channel', type: 7, required: true, channel_types: [0] },
     { name: 'text', description: 'Welcome-Text; Platzhalter siehe /setup', type: 3, required: true },
@@ -31,7 +32,7 @@ const commands = [
   { name: 'setup-permission', description: 'Rollenberechtigung für Commands setzen.', options: [
     { name: 'command', description: 'Command', type: 3, required: true, choices: [
       { name: 'nachricht', value: 'nachricht' }, { name: 'setup', value: 'setup' }, { name: 'verify', value: 'verify' },
-      { name: 'nachrichtauswahl', value: 'nachrichtauswahl' }, { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }
+      { name: 'nachrichtauswahl', value: 'nachrichtauswahl' }, { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'restart', value: 'restart' }
     ]},
     { name: 'role', description: 'Rolle', type: 8, required: true },
     { name: 'erlauben', description: 'true = erlauben, false = entfernen', type: 5, required: true }
