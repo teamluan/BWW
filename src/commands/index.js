@@ -7,7 +7,7 @@ const commands = [
   ]},
   { name: 'setup', description: 'Zeigt die Setup-Hilfe.' },
   { name: 'verify', description: 'Sendet das konfigurierte Verify-System.' },
-  { name: 'nachrichtauswahl', description: 'Sendet das Dokumenten-Auswahl-Menü.', options: [
+  { name: 'nachrichtauswahl', description: 'Sendet das Dokumenten-Auswahl-Men\u00FC.', options: [
     { name: 'text', description: 'Optionaler Einleitungstext am Anfang', type: 3, required: false }
   ]},
   { name: 'ticket', description: 'Sendet das Ticket-Panel.' },
@@ -28,7 +28,7 @@ const commands = [
   { name: 'unban', description: 'Entbannt einen Benutzer.', options: [
     { name: 'user', description: 'Benutzer', type: 6, required: true }
   ]},
-  { name: 'timeout', description: 'Pausiert ein Mitglied für eine Dauer.', options: [
+  { name: 'timeout', description: 'Pausiert ein Mitglied f\u00FCr eine Dauer.', options: [
     { name: 'user', description: 'Mitglied', type: 6, required: true },
     { name: 'dauer', description: 'Dauer in Minuten', type: 4, required: true },
     { name: 'grund', description: 'Grund', type: 3, required: false }
@@ -52,10 +52,10 @@ const commands = [
     { name: 'text', description: 'Text des Verify-Embeds', type: 3, required: true }
   ]},
   { name: 'setup-ticket', description: 'Ticket-System konfigurieren.', options: [
-    { name: 'kategorie', description: 'Kategorie für Ticket-Kanäle', type: 7, required: true, channel_types: [4] },
+    { name: 'kategorie', description: 'Kategorie f\u00FCr Ticket-Kan\u00E4le', type: 7, required: true, channel_types: [4] },
     { name: 'rolle', description: 'Ticket-Rolle mit Kanalzugriff', type: 8, required: true }
   ]},
-  { name: 'setup-permission', description: 'Rollenberechtigung für Commands setzen.', options: [
+  { name: 'setup-permission', description: 'Rollenberechtigung f\u00FCr Commands setzen.', options: [
     { name: 'command', description: 'Command', type: 3, required: true, choices: [
       { name: 'nachricht', value: 'nachricht' }, { name: 'setup', value: 'setup' }, { name: 'verify', value: 'verify' },
       { name: 'nachrichtauswahl', value: 'nachrichtauswahl' }, { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'restart', value: 'restart' },
@@ -69,8 +69,12 @@ const commands = [
 
 function isAllowed(interaction, config) {
   if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return true;
-  const roles = config.permissions[interaction.commandName] || [];
-  return roles.some(id => interaction.member.roles.cache.has(id));
+  const key = interaction.commandName;
+  if (!key) return false;
+  const roles = config.permissions[key] || [];
+  const memberRoles = interaction.member?.roles?.cache;
+  if (!memberRoles) return false;
+  return roles.some(id => memberRoles.has(id));
 }
 
 module.exports = { commands, isAllowed };
