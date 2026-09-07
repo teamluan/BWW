@@ -28,6 +28,55 @@ try {
   fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true });
 } catch (_) {}
 
+// Optionaler Discord Webhook für Logs (KataBump: LOG_WEBHOOK_URL setzen).
+// Unterstützt LOG_WEBHOOK_URL oder DISCORD_LOG_WEBHOOK, Level via LOG_WEBHOOK_LEVEL (info|warn|error).
+// URL wird nie geloggt.
+const WEBHOOK_URL = (process.env.LOG_WEBHOOK_URL || process.env.DISCORD_LOG_WEBHOOK || '').trim();
+const WEBHOOK_LEVEL_RAW = String(process.env.LOG_WEBHOOK_LEVEL || 'info').toLowerCase();
+const WEBHOOK_LEVEL = ['error', 'warn', 'info'].includes(WEBHOOK_LEVEL_RAW) ? WEBHOOK_LEVEL_RAW : 'info';
+let webhookQueue = Promise.resolve();
+
+function shouldNotify(level) {
+  const l = String(level).toLowerCase();
+  if (WEBHOOK_LEVEL === 'error') return ['error', 'fatal', 'unhandled'].includes(l);
+  if (WEBHOOK_LEVEL === 'warn') return ['warn', 'error', 'fatal', 'unhandled'].includes(l);
+  return true;
+}
+function truncateForWebhook(str, max = 4000) {
+  if (str.length <= max) return str;
+  return str.slice(0, max - 20) + '\n… (gekürzt)';
+}
+async function postWebhook(payload) {
+  if (!WEBHOOK_URL) return;
+  try {
+    const res = await fetch(WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'User-Agent': 'bww-sync-webhook' },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(10000),
+    });
+    if (res.status === 429) {
+      const data = await res.json().catch(() => ({}));
+      const retryAfter = Math.ceil((data.retry_after || 1) * 1000);
+      await new Promise(r => setTimeout(r, Math.min(retryAfter, 5000)));
+      await fetch(WEBHOOK_URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload), signal: AbortSignal.timeout(10000) }).catch(() => {});
+    }
+  } catch (_) {}
+}
+function notifyWebhook(level, line) {
+  if (!WEBHOOK_URL || !shouldNotify(level)) return;
+  const color = level === 'ERROR' || level === 'FATAL' || level === 'UNHANDLED' ? 0xED4245 : level === 'WARN' ? 0xFEE75C : 0x5865F2;
+  const payload = {
+    embeds: [{
+      description: '```ansi\n' + truncateForWebhook(String(line), 4000) + '\n```',
+      color,
+      timestamp: new Date().toISOString(),
+      footer: { text: `sync.js • ${level}` }
+    }]
+  };
+  webhookQueue = webhookQueue.then(() => postWebhook(payload)).catch(() => {});
+}
+
 function writeToFile(chunk) {
   try {
     fs.appendFileSync(LOG_FILE, chunk);
@@ -48,6 +97,7 @@ function emit(level, args) {
   if (level === 'ERROR') console.error(line);
   else if (level === 'WARN') console.warn(line);
   else console.log(line);
+  notifyWebhook(level, line);
 }
 
 const logger = {
@@ -57,13 +107,17 @@ const logger = {
 };
 
 process.on('uncaughtException', (err) => {
-  writeToFile(`[${new Date().toISOString()}] [FATAL] ${(err && err.stack) || err}\n`);
-  console.error(`[FATAL] ${(err && err.stack) || err}`);
+  const msg = (err && err.stack) || err;
+  writeToFile(`[${new Date().toISOString()}] [FATAL] ${msg}\n`);
+  console.error(`[FATAL] ${msg}`);
+  notifyWebhook('FATAL', `[FATAL] ${msg}`);
   process.exit(1);
 });
 process.on('unhandledRejection', (reason) => {
-  writeToFile(`[${new Date().toISOString()}] [UNHANDLED] ${(reason && reason.stack) || reason}\n`);
-  console.error(`[UNHANDLED] ${(reason && reason.stack) || reason}`);
+  const msg = (reason && reason.stack) || reason;
+  writeToFile(`[${new Date().toISOString()}] [UNHANDLED] ${msg}\n`);
+  console.error(`[UNHANDLED] ${msg}`);
+  notifyWebhook('UNHANDLED', `[UNHANDLED] ${msg}`);
 });
 
 const OWNER = 'teamluan';
@@ -305,6 +359,7 @@ function stopBot() {
 
 function startBot() {
   logger.info('Starte Bot (node src/index.js)...');
+  if (WEBHOOK_URL) logger.info(`Log-Webhook aktiv (Level: ${WEBHOOK_LEVEL})`);
   stopping = false;
   botProcess = spawn('node', ['src/index.js'], {
     cwd: ROOT,
@@ -315,7 +370,13 @@ function startBot() {
     if (!stream) return;
     stream.on('data', (buf) => {
       const text = buf.toString();
-      writeToFile(text.endsWith('\n') ? text : text + '\n');
+      const chunk = text.endsWith('\n') ? text : text + '\n';
+      writeToFile(chunk);
+      // Bot-Logs ebenfalls an Webhook (gefiltert nach Level)
+      if (WEBHOOK_URL) {
+        const level = text.includes('[ERROR]') || text.toLowerCase().includes('error') ? 'ERROR' : text.includes('[WARN]') ? 'WARN' : 'INFO';
+        notifyWebhook(level, text.trim());
+      }
     });
   };
   forward(botProcess.stdout);
@@ -323,7 +384,6 @@ function startBot() {
   botProcess.on('exit', (code, signal) => {
     logger.info(`Bot-Prozess beendet (code=${code}, signal=${signal})`);
     botProcess = null;
-    // Nach einem unerwarteten Absturz automatisch neu starten (mit Backoff).
     if (!stopping && process.exitCode !== 0) {
       logger.warn(`Bot unerwartet beendet – starte in ${Math.round(restartDelay / 1000)}s neu…`);
       const delay = restartDelay;
@@ -343,7 +403,6 @@ async function start() {
     if (ENABLED) {
       status.enabled = true;
       logger.info(`Auto-Update aktiv – prüfe alle ${INTERVAL_S} Sekunden auf neue Commits.`);
-      // Beim allerersten Start zuerst (Erst-)Installation, dann Bot starten.
       if (!readSha()) {
         initializing = true;
         logger.info('Nichts installiert – starte Erstinstallation...');
@@ -356,9 +415,7 @@ async function start() {
   } catch (err) {
     logger.error('Initialer Auto-Update-Schritt fehlgeschlagen:', err && err.message ? err.message : err);
   }
-
   startBot();
-
   if (ENABLED) {
     intervalHandle = setInterval(() => tick().catch(() => {}), INTERVAL_MS);
   }
