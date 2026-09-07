@@ -432,6 +432,19 @@ async function start() {
   if (ENABLED) {
     intervalHandle = setInterval(() => tick().catch(() => {}), INTERVAL_MS);
   }
+  // Watchdog für BwW-Neustart.bat: /restart.requested (alle 3s)
+  const RESTART_FILE = path.join(ROOT, 'restart.requested');
+  setInterval(() => {
+    try {
+      if (fs.existsSync(RESTART_FILE)) {
+        try { fs.unlinkSync(RESTART_FILE); } catch (_) {}
+        logger.info('Neustart via restart.requested angefordert – starte neu…');
+        notifyWebhook('INFO', 'Neustart via restart.requested');
+        stopBot();
+        setTimeout(() => process.exit(0), 1500).unref();
+      }
+    } catch (_) {}
+  }, 3000);
 }
 
 start();
