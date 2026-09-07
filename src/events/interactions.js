@@ -8,6 +8,12 @@ const { loadGiveaways, saveGiveaways, giveawayMessage, startGiveaway, finalizeGi
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral };
 
+function hasGiveawayManagePermission(interaction, config) {
+  if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return true;
+  const roles = config.permissions['giveaway'] || [];
+  return roles.some(id => interaction.member.roles.cache.has(id));
+}
+
 module.exports = async (interaction, client) => {
   const config = require('../config').load();
 
@@ -26,8 +32,10 @@ module.exports = async (interaction, client) => {
   }
 
   if (interaction.isButton() && interaction.customId.startsWith('bww_giveaway_')) {
-    const id = interaction.customId.split('_').slice(3).join('_');
-    const action = interaction.customId.replace(`bww_giveaway_${id}`, '').replace(/_$/, '');
+    const parts = interaction.customId.split('_');
+    const action = parts[2];
+    const id = parts.slice(3).join('_');
+    if (!['join', 'leave', 'end', 'reroll'].includes(action)) return;
     const list = loadGiveaways();
     const g = list.find(x => x.id === id);
 
@@ -51,16 +59,16 @@ module.exports = async (interaction, client) => {
     }
 
     if (action === 'end' || action === 'reroll') {
-      if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst das Giveaway nicht verwalten.', ...EPHEMERAL });
+      if (!hasGiveawayManagePermission(interaction, config)) return interaction.reply({ content: '❌ Du darfst das Giveaway nicht verwalten.', ...EPHEMERAL });
       if (action === 'end') {
         if (!g || !g.active) return interaction.reply({ content: '❌ Dieses Giveaway ist bereits beendet.', ...EPHEMERAL });
-        g.endTime = Date.now() - 1;
         const winners = await finalizeGiveaway(client, g);
-        saveGiveaways(list);
         return interaction.reply({ content: winners.length ? `✅ Giveaway beendet. Gewinner: ${winners.map(w => `<@${w}>`).join(', ')}` : '✅ Giveaway beendet. Keine Teilnehmer.', ...EPHEMERAL });
       } else {
         const res = await rerollGiveaway(client, id);
-        return interaction.reply({ content: res.ok ? `🔁 Neu gezogen: ${res.winners.map(w => `<@${w}>`).join(', ')}` : `❌ ${res.error}`, ...EPHEMERAL });
+        if (!res.ok) return interaction.reply({ content: `❌ ${res.error}`, ...EPHEMERAL });
+        const winText = res.winners.length ? res.winners.map(w => `<@${w}>`).join(', ') : 'Keine Teilnehmer übrig 😔';
+        return interaction.reply({ content: `🔁 Neu gezogen: ${winText}`, ...EPHEMERAL });
       }
     }
   }
@@ -186,8 +194,12 @@ module.exports = async (interaction, client) => {
     const prize = interaction.options.getString('preis', true);
     const winners = Math.max(1, interaction.options.getInteger('gewinner') || 1);
     const durationMs = interaction.options.getInteger('dauer') * 1000 || 60000;
-    const g = await startGiveaway(interaction.channel, prize, durationMs, winners);
-    return interaction.reply({ content: '✅ Giveaway gestartet!', ...EPHEMERAL });
+    try {
+      const g = await startGiveaway(interaction.channel, prize, durationMs, winners);
+      return interaction.reply({ content: '✅ Giveaway gestartet!', ...EPHEMERAL });
+    } catch (err) {
+      return interaction.reply({ content: `❌ Giveaway fehlgeschlagen: ${err.message}`, ...EPHEMERAL });
+    }
   }
   if (command === 'verify') {
     config.verify.channelId = interaction.channelId; config.verify.enabled = true; save(config);

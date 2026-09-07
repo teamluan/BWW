@@ -73,7 +73,7 @@ const API = 'https://api.github.com';
 const RAW = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/`;
 const SHA_FILE = path.join(ROOT, '.deploy-sha');
 const SKIP_DIRS = new Set(['.git', '.github', 'node_modules', 'logs', 'data', 'backups']);
-const SKIP_FILES = new Set(['.env', '.env.local', '.deploy-sha', '.gitignore', 'sync.js', 'logs']);
+const SKIP_FILES = new Set(['.env', '.env.local', '.deploy-sha', '.gitignore', 'sync.js', 'logs', 'giveaways.json', 'config.json']);
 
 const ENABLED = process.env.AUTO_UPDATE === 'true';
 const INTERVAL_MS = Number(process.env.AUTO_UPDATE_INTERVAL_MS) || 120000;

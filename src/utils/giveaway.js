@@ -42,13 +42,21 @@ function giveawayMessage(g) {
 }
 
 async function startGiveaway(channel, prize, durationMs, winners) {
+  const safeDuration = Math.max(5000, Number(durationMs) || 60000);
+  const safeWinners = Math.max(1, Number(winners) || 1);
+  const safePrize = String(prize).slice(0, 256).trim() || 'Preis';
+  const id = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const g = { id, prize: safePrize, winners: safeWinners, endTime: Date.now() + safeDuration, entries: [], channelId: channel.id, active: true };
+  let sent;
+  try {
+    sent = await channel.send(giveawayMessage(g));
+  } catch (err) {
+    throw new Error(`Giveaway-Nachricht konnte nicht gesendet werden: ${err.message}`);
+  }
+  g.messageId = sent.id;
   const list = loadGiveaways();
-  const g = { id: `${Date.now()}`, prize, winners, endTime: Date.now() + durationMs, entries: [], channelId: channel.id, active: true };
   list.push(g);
   saveGiveaways(list);
-  const sent = await channel.send(giveawayMessage(g));
-  g.messageId = sent.id;
-  saveGiveaways(loadGiveaways().map(x => (x.id === g.id ? g : x)));
   return g;
 }
 
@@ -65,7 +73,7 @@ function drawWinners(g) {
 
 async function updateGiveawayMessage(client, g) {
   try {
-    const channel = client.channels.cache.get(g.channelId);
+    const channel = client.channels.cache.get(g.channelId) || await client.channels.fetch(g.channelId).catch(() => null);
     if (!channel) return;
     const msg = await channel.messages.fetch(g.messageId).catch(() => null);
     if (msg) await msg.edit(giveawayMessage(g));
@@ -73,33 +81,37 @@ async function updateGiveawayMessage(client, g) {
 }
 
 async function finalizeGiveaway(client, g) {
-  g.active = false;
-  const winners = drawWinners(g);
-  g.winnersDrawn = winners;
   const list = loadGiveaways();
-  const upd = list.map(x => (x.id === g.id ? g : x));
-  saveGiveaways(upd);
+  const stored = list.find(x => x.id === g.id);
+  const target = stored || g;
+  if (!target.active) {
+    return target.winnersDrawn || [];
+  }
+  target.active = false;
+  const winners = drawWinners(target);
+  target.winnersDrawn = winners;
+  saveGiveaways(list.map(x => (x.id === target.id ? target : x)));
 
   const embed = new EmbedBuilder()
     .setTitle('🎉 Giveaway beendet')
     .setColor(0x5865f2)
     .setDescription(
-      `**Preis:** ${g.prize}\n` +
+      `**Preis:** ${target.prize}\n` +
       `**Gewinner:** ${winners.length ? winners.map(id => `<@${id}>`).join(', ') : 'Keine Teilnehmer 😔'}`
     )
     .setTimestamp();
 
   try {
-    const channel = client.channels.cache.get(g.channelId);
+    const channel = client.channels.cache.get(target.channelId) || await client.channels.fetch(target.channelId).catch(() => null);
     if (channel) {
-      const msg = await channel.messages.fetch(g.messageId).catch(() => null);
-      if (msg) await msg.edit({ embeds: [embed], components: giveawayMessage(g).components });
+      const msg = await channel.messages.fetch(target.messageId).catch(() => null);
+      if (msg) await msg.edit({ embeds: [embed], components: giveawayMessage(target).components });
     }
   } catch {}
   return winners;
 }
 
-// Zieht erneut einen Gewinner für ein bereits beendetes Giveaway.
+// Zieht erneut Gewinner für ein bereits beendetes Giveaway.
 async function rerollGiveaway(client, id) {
   const list = loadGiveaways();
   const g = list.find(x => x.id === id && !x.active);
@@ -113,11 +125,11 @@ async function rerollGiveaway(client, id) {
     .setColor(0x5865f2)
     .setDescription(
       `**Preis:** ${g.prize}\n` +
-      `**Neue Gewinner:** ${winners.length ? winners.map(id => `<@${id}>`).join(', ') : 'Keine Teilnehmer übrig 😔'}`
+      `**Neue Gewinner:** ${winners.length ? winners.map(uid => `<@${uid}>`).join(', ') : 'Keine Teilnehmer übrig 😔'}`
     )
     .setTimestamp();
   try {
-    const channel = client.channels.cache.get(g.channelId);
+    const channel = client.channels.cache.get(g.channelId) || await client.channels.fetch(g.channelId).catch(() => null);
     if (channel) {
       const msg = await channel.messages.fetch(g.messageId).catch(() => null);
       if (msg) await msg.edit({ embeds: [embed], components: giveawayMessage(g).components });
@@ -129,13 +141,17 @@ async function rerollGiveaway(client, id) {
 
 function startGiveawayLoop(client) {
   setTimeout(async () => {
-    const list = loadGiveaways().filter(g => g.active);
-    for (const g of list) {
-      if (g.endTime <= Date.now()) {
-        await finalizeGiveaway(client, g);
+    try {
+      const list = loadGiveaways().filter(g => g.active);
+      for (const g of list) {
+        if (g.endTime <= Date.now()) {
+          await finalizeGiveaway(client, g);
+        }
       }
+    } catch (e) {
+    } finally {
+      startGiveawayLoop(client);
     }
-    startGiveawayLoop(client);
   }, 10000);
 }
 
