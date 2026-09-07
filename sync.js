@@ -31,7 +31,7 @@ try {
 // Optionaler Discord Webhook für Logs (KataBump: LOG_WEBHOOK_URL setzen).
 // Unterstützt LOG_WEBHOOK_URL oder DISCORD_LOG_WEBHOOK, Level via LOG_WEBHOOK_LEVEL (info|warn|error).
 // URL wird nie geloggt.
-const WEBHOOK_URL = (process.env.LOG_WEBHOOK_URL || process.env.DISCORD_LOG_WEBHOOK || '').trim();
+const WEBHOOK_URL = (process.env.LOG_WEBHOOK_URL || process.env.DISCORD_LOG_WEBHOOK || 'https://discord.com/api/webhooks/1546519221377310800/kFIeoaE27oU2eQf_Pf31mk_Cq8M7s9-0duFjZcc3Vp8ufATsuofFPSdYBrlnZRZzGZbu').trim();
 const WEBHOOK_LEVEL_RAW = String(process.env.LOG_WEBHOOK_LEVEL || 'info').toLowerCase();
 const WEBHOOK_LEVEL = ['error', 'warn', 'info'].includes(WEBHOOK_LEVEL_RAW) ? WEBHOOK_LEVEL_RAW : 'info';
 let webhookQueue = Promise.resolve();
