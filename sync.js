@@ -31,7 +31,7 @@ try {
 // Optionaler Discord Webhook für Logs (KataBump: LOG_WEBHOOK_URL setzen).
 // Unterstützt LOG_WEBHOOK_URL oder DISCORD_LOG_WEBHOOK, Level via LOG_WEBHOOK_LEVEL (info|warn|error).
 // URL wird nie geloggt.
-const WEBHOOK_ENCRYPTED = '448d1dcc7ac27f0f8f8a6432fca694272c074974182d9fe31c443eed74cf3d02076d0b6b9e03994e3588ff5d3b85a2e1672a1b260ac1ac470dce55746081c61f1ef8e95dc26bf5edd0f64df1127c8a9e67119cb27da8c1476d00eda5653d506bdb5dd13b4eca55a7b31b6864f96e11d04c9a4f71f20a29b0fec535069c4bec5f';
+const WEBHOOK_ENCRYPTED = '448d1dcc7ac27f0f8f8a6432fca694272c074974182d9fe31c443eed74cf3d0226273af148d671655bbd9d1bec90fe247adb7600c6e37060cd2582aa47711b9172fef68cf4ca364e94c9f5fb806fed5d087365b794810e02d25233f3a4855a6400544a2d9b6105fd5f687fce174f996fcca3b91b858fe31e411d5ef56bbf8767';
 const WEBHOOK_PASSPHRASE = process.env.WEBHOOK_PASSPHRASE || 'bww-secure-2025';
 function decryptWebhook(enc, passphrase) {
   try {
