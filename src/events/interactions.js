@@ -11,21 +11,31 @@ const EPHEMERAL = { flags: MessageFlags.Ephemeral };
 function hasGiveawayManagePermission(interaction, config) {
   if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return true;
   const roles = config.permissions['giveaway'] || [];
-  return roles.some(id => interaction.member.roles.cache.has(id));
+  return roles.some(id => interaction.member?.roles?.cache?.has(id));
+}
+
+function canCloseTicket(interaction, config) {
+  if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return true;
+  if (config.ticket.roleId && interaction.member?.roles?.cache?.has(config.ticket.roleId)) return true;
+  if (interaction.channel?.name?.startsWith('ticket-') && interaction.channel?.permissionOverwrites?.cache?.has(interaction.user.id)) return true;
+  return false;
 }
 
 module.exports = async (interaction, client) => {
+  try {
   const config = require('../config').load();
 
   if (interaction.isButton() && interaction.customId === 'bww_verify') {
     if (!config.verify.roleId) return interaction.reply({ content: '❌ Keine Verifizierungsrolle eingerichtet.', ...EPHEMERAL });
-    const role = interaction.guild.roles.cache.get(config.verify.roleId);
+    const role = interaction.guild.roles.cache.get(config.verify.roleId) || await interaction.guild.roles.fetch(config.verify.roleId).catch(() => null);
     if (!role) return interaction.reply({ content: '❌ Die Verifizierungsrolle existiert nicht mehr.', ...EPHEMERAL });
+    if (interaction.member.roles.cache.has(role.id)) return interaction.reply({ content: '✅ Du bist bereits verifiziert.', ...EPHEMERAL });
     try { await interaction.member.roles.add(role); } catch { return interaction.reply({ content: '❌ Ich konnte die Rolle nicht vergeben. Prüfe meine Rollenposition.', ...EPHEMERAL }); }
     return interaction.reply({ content: '✅ Du wurdest erfolgreich verifiziert.', ...EPHEMERAL });
   }
 
   if (interaction.isButton() && interaction.customId === 'bww_ticket_close') {
+    if (!canCloseTicket(interaction, config)) return interaction.reply({ content: '❌ Du darfst dieses Ticket nicht schließen.', ...EPHEMERAL });
     await interaction.reply({ content: '🔒 Ticket wird geschlossen und gelöscht…', ...EPHEMERAL });
     setTimeout(() => interaction.channel.delete().catch(() => {}), 2000);
     return;
@@ -136,7 +146,7 @@ module.exports = async (interaction, client) => {
     const user = interaction.options.getUser('user');
     const reason = interaction.options.getString('grund') || 'Kein Grund angegeben';
     if (!user) return interaction.reply({ content: '❌ Benutzer nicht gefunden.', ...EPHEMERAL });
-    try { await interaction.guild.bans.create(user.id, { reason }); } catch { return interaction.reply({ content: '❌ Ban fehlgeschlagen.', ...EPHEMERAL }); }
+    try { await interaction.guild.bans.create(user.id, { reason }); } catch { return interaction.reply({ content: '❌ Ban fehlgeschlagen. Prüfe Rechte/Rollenposition.', ...EPHEMERAL }); }
     return interaction.reply({ content: `🔨 ${user.tag} wurde gebannt.\n**Grund:** ${reason}`, ...EPHEMERAL });
   }
   if (command === 'unban') {
@@ -161,7 +171,7 @@ module.exports = async (interaction, client) => {
     if (!member) return interaction.reply({ content: '❌ Mitglied nicht gefunden.', ...EPHEMERAL });
     if (!role) return interaction.reply({ content: '❌ Rolle nicht gefunden.', ...EPHEMERAL });
     if (member.roles.cache.has(role.id)) return interaction.reply({ content: '❌ Der User hat die Rolle bereits.', ...EPHEMERAL });
-    try { await member.roles.add(role); } catch { return interaction.reply({ content: '❌ Rolle konnte nicht vergeben werden.', ...EPHEMERAL }); }
+    try { await member.roles.add(role); } catch { return interaction.reply({ content: '❌ Rolle konnte nicht vergeben werden. Prüfe Hierarchie.', ...EPHEMERAL }); }
     return interaction.reply({ content: `✅ ${member.user.tag} hat die Rolle ${role} erhalten.`, ...EPHEMERAL });
   }
   if (command === 'removerole') {
@@ -178,33 +188,49 @@ module.exports = async (interaction, client) => {
     const embed = new EmbedBuilder().setColor(0x2f3136).setDescription(interaction.options.getString('text', true)).setTimestamp();
     const image = interaction.options.getString('bild');
     if (image) embed.setImage(image);
-    await interaction.channel.send({ embeds: [embed] });
-    return interaction.reply({ content: '✅ Embed gesendet.', ...EPHEMERAL });
+    try {
+      await interaction.channel.send({ embeds: [embed] });
+      return interaction.reply({ content: '✅ Embed gesendet.', ...EPHEMERAL });
+    } catch (err) {
+      return interaction.reply({ content: `❌ Embed konnte nicht gesendet werden: ${err.message}`, ...EPHEMERAL });
+    }
   }
   if (command === 'nachrichtauswahl') {
     const intro = interaction.options.getString('text') || undefined;
-    await interaction.channel.send(documentMenu(intro));
-    return interaction.reply({ content: '✅ Dokumenten-Auswahl gesendet.', ...EPHEMERAL });
+    try {
+      await interaction.channel.send(documentMenu(intro));
+      return interaction.reply({ content: '✅ Dokumenten-Auswahl gesendet.', ...EPHEMERAL });
+    } catch (err) {
+      return interaction.reply({ content: `❌ Konnte nicht gesendet werden: ${err.message}`, ...EPHEMERAL });
+    }
   }
   if (command === 'ticket') {
-    await interaction.channel.send(ticketPanel(config));
-    return interaction.reply({ content: '✅ Ticket-Panel gesendet.', ...EPHEMERAL });
+    try {
+      await interaction.channel.send(ticketPanel(config));
+      return interaction.reply({ content: '✅ Ticket-Panel gesendet.', ...EPHEMERAL });
+    } catch (err) {
+      return interaction.reply({ content: `❌ Ticket-Panel fehlgeschlagen: ${err.message}`, ...EPHEMERAL });
+    }
   }
   if (command === 'giveaway') {
     const prize = interaction.options.getString('preis', true);
     const winners = Math.max(1, interaction.options.getInteger('gewinner') || 1);
     const durationMs = interaction.options.getInteger('dauer') * 1000 || 60000;
     try {
-      const g = await startGiveaway(interaction.channel, prize, durationMs, winners);
+      await startGiveaway(interaction.channel, prize, durationMs, winners);
       return interaction.reply({ content: '✅ Giveaway gestartet!', ...EPHEMERAL });
     } catch (err) {
       return interaction.reply({ content: `❌ Giveaway fehlgeschlagen: ${err.message}`, ...EPHEMERAL });
     }
   }
   if (command === 'verify') {
-    config.verify.channelId = interaction.channelId; config.verify.enabled = true; save(config);
-    await interaction.channel.send(verifyMessage(config));
-    return interaction.reply({ content: '✅ Verify-Panel gesendet.', ...EPHEMERAL });
+    try {
+      config.verify.channelId = interaction.channelId; config.verify.enabled = true; save(config);
+      await interaction.channel.send(verifyMessage(config));
+      return interaction.reply({ content: '✅ Verify-Panel gesendet.', ...EPHEMERAL });
+    } catch (err) {
+      return interaction.reply({ content: `❌ Verify-Panel fehlgeschlagen: ${err.message}`, ...EPHEMERAL });
+    }
   }
   if (command === 'setup') {
     const embed = new EmbedBuilder().setTitle('BWW Setup').setColor(0x2f3136).setDescription(
@@ -221,5 +247,11 @@ module.exports = async (interaction, client) => {
       'Der Avatar des Users erscheint automatisch oben rechts.'
     );
     return interaction.reply({ embeds: [embed], ...EPHEMERAL });
+  }
+  } catch (err) {
+    console.error('Interaction Handler Fehler:', err.stack || err.message);
+    if (interaction.isRepliable() && !interaction.replied && !interaction.deferred) {
+      await interaction.reply({ content: '❌ Unerwarteter Fehler.', ...EPHEMERAL }).catch(() => {});
+    }
   }
 };
