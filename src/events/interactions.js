@@ -212,9 +212,9 @@ module.exports = async (interaction, client) => {
   }
   if (command === 'setup') {
     const container = new ContainerBuilder().setAccentColor(0x2F3136);
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## BWW Setup\n\`/setup-welcome\` [channel] [text] [title?] → Welcome\n\`/setup-verify\` → Verify\n\`/setup-ticket\` [kategorie] [rolle] → Ticket\n\`/setup-permission\` → Command-Berechtigungen\n\`/restart\` → Bot neu starten\n\`/panel-create\` → Custom Panel (10 Buttons) speichern+senden\n\`/panel-send\`/`\`/panel-delete\`/`\`/panel-list\` → Panels verwalten\n\`/kick\`, \`/ban\`, \`/unban\`, \`/timeout\` → Moderation\n\`/giverole\`, \`/removerole\` → Rollen`));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## BWW Setup\n`/setup-welcome` [channel] [text] [title?] → Welcome\n`/setup-verify` → Verify\n`/setup-ticket` [kategorie] [rolle] → Ticket\n`/setup-permission` → Command-Berechtigungen\n`/restart` → Bot neu starten\n`/panel-create` → Custom Panel (10 Buttons) speichern+senden\n`/panel-send`/`/panel-delete`/`/panel-list` → Panels verwalten\n`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n`/giverole`, `/removerole` → Rollen'));
     container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`**Welcome-Platzhalter:**\n\`{user}\` → Ping\n\`{username}\` → Name\n\`{displayname}\` → Server-Nickname\n\`{server}\` → Servername\n\`{id}\` → User-ID\n\`{count}\` → Mitgliederzahl\n\nDer Avatar des Users erscheint automatisch oben rechts.`));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('**Welcome-Platzhalter:**\n`{user}` → Ping\n`{username}` → Name\n`{displayname}` → Server-Nickname\n`{server}` → Servername\n`{id}` → User-ID\n`{count}` → Mitgliederzahl\n\nDer Avatar des Users erscheint automatisch oben rechts.'));
     return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
   }
   } catch (err) {
