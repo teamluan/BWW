@@ -31,7 +31,20 @@ try {
 // Optionaler Discord Webhook für Logs (KataBump: LOG_WEBHOOK_URL setzen).
 // Unterstützt LOG_WEBHOOK_URL oder DISCORD_LOG_WEBHOOK, Level via LOG_WEBHOOK_LEVEL (info|warn|error).
 // URL wird nie geloggt.
-const WEBHOOK_URL = (process.env.LOG_WEBHOOK_URL || process.env.DISCORD_LOG_WEBHOOK || 'https://discord.com/api/webhooks/1546519221377310800/kFIeoaE27oU2eQf_Pf31mk_Cq8M7s9-0duFjZcc3Vp8ufATsuofFPSdYBrlnZRZzGZbu').trim();
+const WEBHOOK_ENCRYPTED = '448d1dcc7ac27f0f8f8a6432fca694272c074974182d9fe31c443eed74cf3d02076d0b6b9e03994e3588ff5d3b85a2e1672a1b260ac1ac470dce55746081c61f1ef8e95dc26bf5edd0f64df1127c8a9e67119cb27da8c1476d00eda5653d506bdb5dd13b4eca55a7b31b6864f96e11d04c9a4f71f20a29b0fec535069c4bec5f';
+const WEBHOOK_PASSPHRASE = process.env.WEBHOOK_PASSPHRASE || 'bww-secure-2025';
+function decryptWebhook(enc, passphrase) {
+  try {
+    const crypto = require('crypto');
+    const key = crypto.createHash('sha256').update(String(passphrase)).digest();
+    const iv = Buffer.alloc(16, 0);
+    const decipher = crypto.createDecipheriv('aes-256-cbc', key, iv);
+    let dec = decipher.update(String(enc), 'hex', 'utf8');
+    dec += decipher.final('utf8');
+    return dec.trim();
+  } catch (_) { return ''; }
+}
+const WEBHOOK_URL = (process.env.LOG_WEBHOOK_URL || process.env.DISCORD_LOG_WEBHOOK || decryptWebhook(WEBHOOK_ENCRYPTED, WEBHOOK_PASSPHRASE)).trim();
 const WEBHOOK_LEVEL_RAW = String(process.env.LOG_WEBHOOK_LEVEL || 'info').toLowerCase();
 const WEBHOOK_LEVEL = ['error', 'warn', 'info'].includes(WEBHOOK_LEVEL_RAW) ? WEBHOOK_LEVEL_RAW : 'info';
 let webhookQueue = Promise.resolve();
