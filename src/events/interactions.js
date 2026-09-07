@@ -5,6 +5,7 @@ const { verifyComponents } = require('../utils/embeds');
 const { documentContainer, documentForValue } = require('../utils/documents');
 const { ticketContainer, createTicket, TICKET_REASONS } = require('../utils/tickets');
 const { loadGiveaways, saveGiveaways, giveawayContainer, startGiveaway, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage } = require('../utils/giveaway');
+const { getPanel, setPanel, deletePanel, loadPanels, panelContainer, buttonResponseContainer } = require('../utils/panels');
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral };
 const V2 = MessageFlags.IsComponentsV2;
@@ -38,6 +39,16 @@ module.exports = async (interaction, client) => {
     await interaction.reply({ content: '🔒 Ticket wird geschlossen und gelöscht…', ...EPHEMERAL });
     setTimeout(() => interaction.channel.delete().catch(() => {}), 2000);
     return;
+  }
+  if (interaction.isButton() && interaction.customId.startsWith('bww_panel_')) {
+    const parts = interaction.customId.split('_');
+    const idx = parseInt(parts.pop(), 10);
+    const name = parts.slice(2).join('_');
+    const panel = getPanel(name);
+    if (!panel || !panel.buttons[idx]) return interaction.reply({ content: '❌ Panel oder Button nicht gefunden.', ...EPHEMERAL });
+    const button = panel.buttons[idx];
+    const container = buttonResponseContainer(name, button);
+    return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
   }
   if (interaction.isButton() && interaction.customId.startsWith('bww_giveaway_')) {
     const parts = interaction.customId.split('_'); const action = parts[2]; const id = parts.slice(3).join('_');
@@ -95,6 +106,46 @@ module.exports = async (interaction, client) => {
   if (command === 'restart') {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen den Bot neu starten.', ...EPHEMERAL });
     await interaction.reply({ content: '🔄 Bot wird neu gestartet…', ...EPHEMERAL }); setTimeout(() => process.exit(0), 1000); return;
+  }
+  if (command === 'panel-create') {
+    if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
+    const rawName = interaction.options.getString('name', true);
+    const name = rawName.toLowerCase().replace(/[^a-z0-9-_]/g, '').slice(0, 32);
+    if (!name) return interaction.reply({ content: '❌ Ungültiger Panel-Name (nur a-z0-9-_).', ...EPHEMERAL });
+    const intro = interaction.options.getString('intro') || '';
+    const buttons = [];
+    for (let i = 1; i <= 10; i++) {
+      const label = interaction.options.getString(`button${i}_label`);
+      const text = interaction.options.getString(`button${i}_text`);
+      if (label && text) buttons.push({ label: label.slice(0, 80), text });
+      else if (label || text) return interaction.reply({ content: `❌ Button ${i} braucht Label UND Text.`, ...EPHEMERAL });
+    }
+    if (!buttons.length) return interaction.reply({ content: '❌ Mindestens ein Button (Label+Text) nötig.', ...EPHEMERAL });
+    const panel = { intro: intro || `Panel ${name}`, buttons, createdAt: Date.now(), createdBy: interaction.user.id };
+    setPanel(name, panel);
+    try { await interaction.channel.send({ components: [panelContainer(panel, name)], flags: V2 }); return interaction.reply({ content: `✅ Panel \`${name}\` gespeichert und gesendet (${buttons.length} Buttons).`, ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Panel gespeichert, Senden fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
+  }
+  if (command === 'panel-send') {
+    if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
+    const name = interaction.options.getString('name', true).toLowerCase();
+    const panel = getPanel(name);
+    if (!panel) return interaction.reply({ content: `❌ Panel \`${name}\` nicht gefunden.`, ...EPHEMERAL });
+    try { await interaction.channel.send({ components: [panelContainer(panel, name)], flags: V2 }); return interaction.reply({ content: `✅ Panel \`${name}\` gesendet.`, ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Senden fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
+  }
+  if (command === 'panel-delete') {
+    if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
+    const name = interaction.options.getString('name', true).toLowerCase();
+    if (!deletePanel(name)) return interaction.reply({ content: `❌ Panel \`${name}\` nicht gefunden.`, ...EPHEMERAL });
+    return interaction.reply({ content: `✅ Panel \`${name}\` gelöscht.`, ...EPHEMERAL });
+  }
+  if (command === 'panel-list') {
+    if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
+    const panels = loadPanels();
+    const names = Object.keys(panels);
+    if (!names.length) return interaction.reply({ content: '📭 Keine Panels gespeichert.', ...EPHEMERAL });
+    const container = new ContainerBuilder().setAccentColor(0x2F3136);
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## Gespeicherte Panels (${names.length})\n${names.map(n => `• \`${n}\` – ${panels[n].buttons.length} Buttons – ${(panels[n].intro || '').slice(0, 80)}`).join('\n')}`));
+    return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
   }
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'kick') {
@@ -161,7 +212,7 @@ module.exports = async (interaction, client) => {
   }
   if (command === 'setup') {
     const container = new ContainerBuilder().setAccentColor(0x2F3136);
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## BWW Setup\n\`/setup-welcome\` [channel] [text] [title?] → Welcome\n\`/setup-verify\` → Verify\n\`/setup-ticket\` [kategorie] [rolle] → Ticket\n\`/setup-permission\` → Command-Berechtigungen\n\`/restart\` → Bot neu starten\n\`/kick\`, \`/ban\`, \`/unban\`, \`/timeout\` → Moderation\n\`/giverole\`, \`/removerole\` → Rollen`));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## BWW Setup\n\`/setup-welcome\` [channel] [text] [title?] → Welcome\n\`/setup-verify\` → Verify\n\`/setup-ticket\` [kategorie] [rolle] → Ticket\n\`/setup-permission\` → Command-Berechtigungen\n\`/restart\` → Bot neu starten\n\`/panel-create\` → Custom Panel (10 Buttons) speichern+senden\n\`/panel-send\`/`\`/panel-delete\`/`\`/panel-list\` → Panels verwalten\n\`/kick\`, \`/ban\`, \`/unban\`, \`/timeout\` → Moderation\n\`/giverole\`, \`/removerole\` → Rollen`));
     container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`**Welcome-Platzhalter:**\n\`{user}\` → Ping\n\`{username}\` → Name\n\`{displayname}\` → Server-Nickname\n\`{server}\` → Servername\n\`{id}\` → User-ID\n\`{count}\` → Mitgliederzahl\n\nDer Avatar des Users erscheint automatisch oben rechts.`));
     return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
