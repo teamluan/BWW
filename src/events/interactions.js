@@ -5,7 +5,7 @@ const { verifyComponents } = require('../utils/embeds');
 const { documentContainer, documentForValue } = require('../utils/documents');
 const { ticketContainer, createTicket, TICKET_REASONS } = require('../utils/tickets');
 const { loadGiveaways, saveGiveaways, giveawayContainer, startGiveaway, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage } = require('../utils/giveaway');
-const { getPanel, setPanel, deletePanel, loadPanels, panelContainer, buttonResponseContainer } = require('../utils/panels');
+const { getPanel, setPanel, deletePanel, loadPanels, panelContainer, buttonResponseContainer, addPanelMessage } = require('../utils/panels');
 
 const EPHEMERAL = { flags: MessageFlags.Ephemeral };
 const V2 = MessageFlags.IsComponentsV2;
@@ -121,22 +121,34 @@ module.exports = async (interaction, client) => {
       else if (label || text) return interaction.reply({ content: `❌ Button ${i} braucht Label UND Text.`, ...EPHEMERAL });
     }
     if (!buttons.length) return interaction.reply({ content: '❌ Mindestens ein Button (Label+Text) nötig.', ...EPHEMERAL });
-    const panel = { intro: intro || `Panel ${name}`, buttons, createdAt: Date.now(), createdBy: interaction.user.id };
+    const panel = { intro: intro || `Panel ${name}`, buttons, messages: [], createdAt: Date.now(), createdBy: interaction.user.id };
     setPanel(name, panel);
-    try { await interaction.channel.send({ components: [panelContainer(panel, name)], flags: V2 }); return interaction.reply({ content: `✅ Panel \`${name}\` gespeichert und gesendet (${buttons.length} Buttons).`, ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Panel gespeichert, Senden fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
+    try { const sent = await interaction.channel.send({ components: [panelContainer(panel, name)], flags: V2 }); addPanelMessage(name, sent.channelId || interaction.channelId, sent.id); return interaction.reply({ content: `✅ Panel \`${name}\` gespeichert und gesendet (${buttons.length} Buttons).`, ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Panel gespeichert, Senden fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
   }
   if (command === 'panel-send') {
     if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
     const name = interaction.options.getString('name', true).toLowerCase();
     const panel = getPanel(name);
     if (!panel) return interaction.reply({ content: `❌ Panel \`${name}\` nicht gefunden.`, ...EPHEMERAL });
-    try { await interaction.channel.send({ components: [panelContainer(panel, name)], flags: V2 }); return interaction.reply({ content: `✅ Panel \`${name}\` gesendet.`, ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Senden fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
+    try { const sent = await interaction.channel.send({ components: [panelContainer(panel, name)], flags: V2 }); addPanelMessage(name, sent.channelId || interaction.channelId, sent.id); return interaction.reply({ content: `✅ Panel \`${name}\` gesendet.`, ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Senden fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
   }
   if (command === 'panel-delete') {
     if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
     const name = interaction.options.getString('name', true).toLowerCase();
-    if (!deletePanel(name)) return interaction.reply({ content: `❌ Panel \`${name}\` nicht gefunden.`, ...EPHEMERAL });
-    return interaction.reply({ content: `✅ Panel \`${name}\` gelöscht.`, ...EPHEMERAL });
+    const panel = getPanel(name);
+    if (!panel) return interaction.reply({ content: `❌ Panel \`${name}\` nicht gefunden.`, ...EPHEMERAL });
+    let deletedCount = 0;
+    const msgs = panel.messages || [];
+    for (const m of msgs) {
+      try {
+        const ch = await client.channels.fetch(m.channelId).catch(() => null);
+        if (!ch || !ch.isTextBased()) continue;
+        const msg = await ch.messages.fetch(m.messageId).catch(() => null);
+        if (msg) { await msg.delete().catch(() => {}); deletedCount++; }
+      } catch {}
+    }
+    deletePanel(name);
+    return interaction.reply({ content: `✅ Panel \`${name}\` gelöscht (${deletedCount} Nachricht(en) entfernt).`, ...EPHEMERAL });
   }
   if (command === 'panel-list') {
     if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
