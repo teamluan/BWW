@@ -1,4 +1,6 @@
-const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
+const fs = require('fs');
+const path = require('path');
+const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, ActionRowBuilder, ButtonBuilder, ButtonStyle, StringSelectMenuBuilder, StringSelectMenuOptionBuilder } = require('discord.js');
 
 const DOCUMENTS = [
   { value: 'kasernenplan', label: 'Kasernenplan', emoji: '📁', text: '**Kasernenplan**\n\nDer offizielle Kasernenplan steht hier. Trage hier den tatsächlichen Inhalt ein.' },
@@ -11,6 +13,15 @@ const DOCUMENTS = [
 ];
 
 const BUTTONS_PER_ROW = 5;
+const docsFile = path.join(__dirname, '..', '..', 'config', 'documents.json');
+
+function loadDocuments() { try { return JSON.parse(fs.readFileSync(docsFile, 'utf8')); } catch { return {}; } }
+function saveDocuments(docs) { const dir = path.dirname(docsFile); if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(docsFile, JSON.stringify(docs, null, 2)); return docs; }
+function getDocument(id) { const docs = loadDocuments(); return docs[id] || null; }
+function setDocument(id, data) { const docs = loadDocuments(); docs[id] = data; saveDocuments(docs); }
+function deleteDocument(id) { const docs = loadDocuments(); if (!(id in docs)) return false; delete docs[id]; saveDocuments(docs); return true; }
+function listDocuments() { return loadDocuments(); }
+function splitText(text, max = 4000) { const pages = []; let cur = ''; for (const para of String(text).split('\n')) { if ((cur + '\n' + para).length > max) { if (cur) pages.push(cur); cur = para; if (cur.length > max) { while (cur.length > max) { pages.push(cur.slice(0, max)); cur = cur.slice(max); } } } else { cur = cur ? cur + '\n' + para : para; } } if (cur) pages.push(cur); return pages.length ? pages : ['']; }
 
 function documentContainer(introText) {
   const container = new ContainerBuilder().setAccentColor(0x2F3136);
@@ -28,9 +39,46 @@ function documentContainer(introText) {
   }
   return container;
 }
-
 function documentMenu(introText) { return documentContainer(introText); }
-
 function documentForValue(value) { return DOCUMENTS.find(d => d.value === value); }
 
-module.exports = { documentMenu, documentContainer, documentForValue, DOCUMENTS };
+function werdegangSelectorContainer() {
+  const docs = loadDocuments();
+  const ids = Object.keys(docs);
+  const container = new ContainerBuilder().setAccentColor(0x2F3136);
+  if (!ids.length) {
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## 📚 Werdegang auswählen\nNoch keine Werdegang-Dokumente vorhanden.\nNutze `/document-create` zum Anlegen.'));
+    return container;
+  }
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## 📚 Werdegang auswählen\nWähle einen Werdegang:`));
+  container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
+  if (ids.length <= 25) {
+    for (let i = 0; i < ids.length; i += 5) {
+      const chunk = ids.slice(i, i + 5);
+      const row = new ActionRowBuilder().addComponents(chunk.map(id => new ButtonBuilder().setCustomId(`bww_doc_select_${id}`).setLabel(docs[id].title || id).setStyle(ButtonStyle.Secondary)));
+      container.addActionRowComponents(row);
+    }
+  } else {
+    const select = new StringSelectMenuBuilder().setCustomId('bww_doc_select_menu').setPlaceholder('Werdegang auswählen').addOptions(ids.slice(0, 25).map(id => new StringSelectMenuOptionBuilder().setLabel((docs[id].title || id).slice(0, 100)).setValue(id)));
+    container.addActionRowComponents(new ActionRowBuilder().addComponents(select));
+  }
+  return container;
+}
+
+function documentPageContainer(docId, pageIdx = 0) {
+  const doc = getDocument(docId);
+  if (!doc) return null;
+  const pages = doc.pages || [];
+  const text = pages[pageIdx] || '';
+  const container = new ContainerBuilder().setAccentColor(0x2F3136);
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${doc.title || docId} (${pageIdx + 1}/${pages.length})\n${text}`));
+  container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
+  const row = new ActionRowBuilder();
+  if (pageIdx > 0) row.addComponents(new ButtonBuilder().setCustomId(`bww_doc_page_${docId}_${pageIdx - 1}`).setLabel('◀ Zurück').setStyle(ButtonStyle.Secondary));
+  if (pageIdx < pages.length - 1) row.addComponents(new ButtonBuilder().setCustomId(`bww_doc_page_${docId}_${pageIdx + 1}`).setLabel('Weiter ▶').setStyle(ButtonStyle.Primary));
+  row.addComponents(new ButtonBuilder().setCustomId(`bww_doc_select_back`).setLabel('📚 Auswahl').setStyle(ButtonStyle.Secondary));
+  container.addActionRowComponents(row);
+  return container;
+}
+
+module.exports = { documentMenu, documentContainer, documentForValue, DOCUMENTS, loadDocuments, saveDocuments, getDocument, setDocument, deleteDocument, listDocuments, splitText, werdegangSelectorContainer, documentPageContainer, docsFile };
