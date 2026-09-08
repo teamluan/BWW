@@ -19,6 +19,8 @@ function getPanel(name) {
 }
 function setPanel(name, data) {
   const panels = loadPanels();
+  if (!panels[name]) data.messages = data.messages || [];
+  else data.messages = data.messages || panels[name].messages || [];
   panels[name] = data;
   savePanels(panels);
 }
@@ -28,6 +30,16 @@ function deletePanel(name) {
   delete panels[name];
   savePanels(panels);
   return true;
+}
+function addPanelMessage(name, channelId, messageId) {
+  const panels = loadPanels();
+  const panel = panels[name];
+  if (!panel) return;
+  panel.messages = panel.messages || [];
+  panel.messages.push({ channelId, messageId, at: Date.now() });
+  // keep last 20 messages max
+  if (panel.messages.length > 20) panel.messages = panel.messages.slice(-20);
+  savePanels(panels);
 }
 function panelContainer(panel, panelName) {
   const container = new ContainerBuilder().setAccentColor(0x2F3136);
@@ -52,4 +64,4 @@ function buttonResponseContainer(panelName, button) {
   return container;
 }
 
-module.exports = { loadPanels, savePanels, getPanel, setPanel, deletePanel, panelContainer, buttonResponseContainer, file };
+module.exports = { loadPanels, savePanels, getPanel, setPanel, deletePanel, addPanelMessage, panelContainer, buttonResponseContainer, file };
