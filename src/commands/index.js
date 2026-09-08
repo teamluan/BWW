@@ -45,6 +45,8 @@ const commands = [
   { name: 'panel-send', description: 'Sendet ein gespeichertes Panel.', options: [{ name: 'name', description: 'Panel-Name', type: 3, required: true }]},
   { name: 'panel-delete', description: 'L\u00F6scht ein gespeichertes Panel.', options: [{ name: 'name', description: 'Panel-Name', type: 3, required: true }]},
   { name: 'panel-list', description: 'Listet alle gespeicherten Panels.' },
+  { name: 'setup-status', description: 'Status-Embed Kanal festlegen (online/offline/wartung).', options: [{ name: 'channel', description: 'Kanal f\u00FCr Status-Embed', type: 7, required: true, channel_types: [0] }]},
+  { name: 'wartung', description: 'Wartungsmodus umschalten (gelb).', options: [{ name: 'aktiv', description: 'true=an, false=aus', type: 5, required: true }, { name: 'grund', description: 'Grund f\u00FCr Wartung', type: 3, required: false }]},
   { name: 'restart', description: 'Startet den Bot neu (Admin).' },
   { name: 'kick', description: 'Kickt ein Mitglied.', options: [
     { name: 'user', description: 'Mitglied', type: 6, required: true },
@@ -87,7 +89,7 @@ const commands = [
   { name: 'setup-permission', description: 'Rollenberechtigung f\u00FCr Commands setzen.', options: [
     { name: 'command', description: 'Command', type: 3, required: true, choices: [
       { name: 'nachricht', value: 'nachricht' }, { name: 'setup', value: 'setup' }, { name: 'verify', value: 'verify' },
-      { name: 'nachrichtauswahl', value: 'nachrichtauswahl' }, { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'panel-create', value: 'panel-create' }, { name: 'panel-send', value: 'panel-send' }, { name: 'panel-delete', value: 'panel-delete' }, { name: 'panel-list', value: 'panel-list' }, { name: 'restart', value: 'restart' },
+      { name: 'nachrichtauswahl', value: 'nachrichtauswahl' }, { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'panel-create', value: 'panel-create' }, { name: 'panel-send', value: 'panel-send' }, { name: 'panel-delete', value: 'panel-delete' }, { name: 'panel-list', value: 'panel-list' }, { name: 'setup-status', value: 'setup-status' }, { name: 'wartung', value: 'wartung' }, { name: 'restart', value: 'restart' },
       { name: 'kick', value: 'kick' }, { name: 'ban', value: 'ban' }, { name: 'unban', value: 'unban' }, { name: 'timeout', value: 'timeout' },
       { name: 'giverole', value: 'giverole' }, { name: 'removerole', value: 'removerole' }
     ]},

@@ -7,6 +7,7 @@ const defaults = {
   welcome: { enabled: false, channelId: '', title: '', message: 'Willkommen {user} auf dem Server! \uD83C\uDF89' },
   verify: { enabled: false, channelId: '', message: 'Klicke auf den Button, um dich zu verifizieren.', roleId: '' },
   ticket: { enabled: false, categoryId: '', roleId: '' },
+  status: { enabled: false, channelId: '', messageId: '', mode: 'online' },
   permissions: {}
 };
 
@@ -21,6 +22,7 @@ function load() {
       welcome: { ...defaults.welcome, ...(parsed.welcome || {}) },
       verify: { ...defaults.verify, ...(parsed.verify || {}) },
       ticket: { ...defaults.ticket, ...(parsed.ticket || {}) },
+      status: { ...defaults.status, ...(parsed.status || {}) },
       permissions: parsed.permissions && typeof parsed.permissions === 'object' ? parsed.permissions : {}
     };
   } catch { return structuredClone(defaults); }
