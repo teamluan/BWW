@@ -227,20 +227,12 @@ module.exports = async (interaction, client) => {
     try {
       const res = await fetch(file.url);
       const buf = Buffer.from(await res.arrayBuffer());
-      const tmpPath = require('path').join(require('os').tmpdir(), `bww_doc_${Date.now()}.docx`);
-      require('fs').writeFileSync(tmpPath, buf);
-      const { execSync } = require('child_process');
-      const unpackDir = require('path').join(require('os').tmpdir(), `bww_unpack_${Date.now()}`);
-      execSync(`python "${process.env.APPDATA ? process.env.APPDATA + '\\..\\.agents\\skills\\docx\\scripts\\office\\unpack.py' : 'scripts/office/unpack.py'}" "${tmpPath}" "${unpackDir}"`, { stdio: 'pipe' });
-      const xml = require('fs').readFileSync(require('path').join(unpackDir, 'word', 'document.xml'), 'utf8');
-      const re = /<w:t[^>]*>([^<]*?)<\/w:t>/g;
-      let m, texts = [];
-      while ((m = re.exec(xml)) !== null) texts.push(m[1]);
-      const plain = texts.join('').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>');
+      const mammoth = require('mammoth');
+      const { value } = await mammoth.extractRawText({ buffer: buf });
+      const plain = value || '';
+      if (!plain.trim()) throw new Error('Kein Text extrahiert');
       const pages = splitText(plain, 4000);
       setDocument(name, { title: titel, pages, fileName: file.name, createdAt: Date.now(), createdBy: interaction.user.id });
-      require('fs').rmSync(tmpPath, { force: true });
-      require('fs').rmSync(unpackDir, { recursive: true, force: true });
       return interaction.editReply({ content: `✅ Dokument \`${name}\` erstellt: "${titel}" – ${pages.length} Seite(n), ${plain.length} Zeichen.` });
     } catch (err) { return interaction.editReply({ content: `❌ Fehler: ${err.message}` }); }
   }
