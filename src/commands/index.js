@@ -46,6 +46,14 @@ const commands = [
   { name: 'panel-delete', description: 'L\u00F6scht ein gespeichertes Panel.', options: [{ name: 'name', description: 'Panel-Name', type: 3, required: true }]},
   { name: 'panel-list', description: 'Listet alle gespeicherten Panels.' },
   { name: 'panel-add-button', description: 'F\u00FCgt Buttons zu Panel hinzu (unbegrenzt, 25/Seite).', options: [{ name: 'name', description: 'Panel-Name', type: 3, required: true }, { name: 'label', description: 'Button Label', type: 3, required: true }, { name: 'text', description: 'Button Antwort', type: 3, required: true }]},
+  { name: 'umfrage', description: 'Erstellt Event-Umfrage mit Live-Z\u00E4hler.', options: [
+    { name: 'frage', description: 'Frage', type: 3, required: true },
+    { name: 'option1', description: 'Option 1', type: 3, required: true },
+    { name: 'option2', description: 'Option 2', type: 3, required: true },
+    { name: 'option3', description: 'Option 3', type: 3, required: false },
+    { name: 'option4', description: 'Option 4', type: 3, required: false },
+    { name: 'option5', description: 'Option 5', type: 3, required: false }
+  ]},
   { name: 'setup-status', description: 'Status-Embed Kanal festlegen (online/offline/wartung).', options: [{ name: 'channel', description: 'Kanal f\u00FCr Status-Embed', type: 7, required: true, channel_types: [0] }]},
   { name: 'wartung', description: 'Wartungsmodus umschalten (gelb).', options: [{ name: 'aktiv', description: 'true=an, false=aus', type: 5, required: true }, { name: 'grund', description: 'Grund f\u00FCr Wartung', type: 3, required: false }]},
   { name: 'restart', description: 'Startet den Bot neu (Admin).' },
@@ -90,7 +98,7 @@ const commands = [
   { name: 'setup-permission', description: 'Rollenberechtigung f\u00FCr Commands setzen.', options: [
     { name: 'command', description: 'Command', type: 3, required: true, choices: [
       { name: 'nachricht', value: 'nachricht' }, { name: 'setup', value: 'setup' }, { name: 'verify', value: 'verify' },
-      { name: 'nachrichtauswahl', value: 'nachrichtauswahl' }, { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'panel-create', value: 'panel-create' }, { name: 'panel-send', value: 'panel-send' }, { name: 'panel-delete', value: 'panel-delete' }, { name: 'panel-list', value: 'panel-list' }, { name: 'panel-add-button', value: 'panel-add-button' }, { name: 'setup-status', value: 'setup-status' }, { name: 'wartung', value: 'wartung' }, { name: 'restart', value: 'restart' },
+      { name: 'nachrichtauswahl', value: 'nachrichtauswahl' }, { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'panel-create', value: 'panel-create' }, { name: 'panel-send', value: 'panel-send' }, { name: 'panel-delete', value: 'panel-delete' }, { name: 'panel-list', value: 'panel-list' }, { name: 'panel-add-button', value: 'panel-add-button' }, { name: 'umfrage', value: 'umfrage' }, { name: 'setup-status', value: 'setup-status' }, { name: 'wartung', value: 'wartung' }, { name: 'restart', value: 'restart' },
       { name: 'kick', value: 'kick' }, { name: 'ban', value: 'ban' }, { name: 'unban', value: 'unban' }, { name: 'timeout', value: 'timeout' },
       { name: 'giverole', value: 'giverole' }, { name: 'removerole', value: 'removerole' }
     ]},
