@@ -2,7 +2,6 @@ const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacing
 const { isAllowed } = require('../commands');
 const { save } = require('../config');
 const { verifyComponents } = require('../utils/embeds');
-const { documentContainer, documentForValue, werdegangSelectorContainer, documentPageContainer, getDocument, setDocument, deleteDocument, listDocuments, splitText } = require('../utils/documents');
 const { ticketContainer, createTicket, TICKET_REASONS } = require('../utils/tickets');
 const { loadGiveaways, saveGiveaways, giveawayContainer, startGiveaway, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage } = require('../utils/giveaway');
 const { getPanel, setPanel, deletePanel, loadPanels, panelContainer, buttonResponseContainer, addPanelMessage } = require('../utils/panels');
@@ -176,25 +175,6 @@ module.exports = async (interaction, client) => {
     return interaction.reply({ content: `✅ Panel \`${name}\` gelöscht (${deletedCount} Nachricht(en) entfernt).`, ...EPHEMERAL });
   }
   if (command === 'panel-list') {
-    if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-    const name = interaction.options.getString('name', true).toLowerCase().replace(/[^a-z0-9-_]/g, '').slice(0, 32);
-    const titel = interaction.options.getString('titel', true);
-    const file = interaction.options.getAttachment('file');
-    if (!file || !file.name.endsWith('.docx')) return interaction.reply({ content: '❌ Bitte .docx Datei anhängen.', ...EPHEMERAL });
-    await interaction.deferReply({ flags: MessageFlags.Ephemeral });
-    try {
-      const res = await fetch(file.url);
-      const buf = Buffer.from(await res.arrayBuffer());
-      const mammoth = require('mammoth');
-      const { value } = await mammoth.extractRawText({ buffer: buf });
-      const plain = value || '';
-      if (!plain.trim()) throw new Error('Kein Text extrahiert');
-      const pages = splitText(plain, 4000);
-      setDocument(name, { title: titel, pages, fileName: file.name, createdAt: Date.now(), createdBy: interaction.user.id });
-      return interaction.editReply({ content: `✅ Dokument \`${name}\` erstellt: "${titel}" – ${pages.length} Seite(n), ${plain.length} Zeichen.` });
-    } catch (err) { return interaction.editReply({ content: `❌ Fehler: ${err.message}` }); }
-  }
-  if (command === 'werdegang-setup') {
     if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
     const channel = interaction.options.getChannel('channel');
     try { const sent = await channel.send({ components: [werdegangSelectorContainer()], flags: V2 }); config.werdegang = { channelId: channel.id, messageId: sent.id }; save(config); return interaction.reply({ content: `✅ Werdegang-Auswahl in ${channel} erstellt.`, ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
