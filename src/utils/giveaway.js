@@ -5,7 +5,7 @@ const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacing
 
 const file = path.join(__dirname, '..', '..', 'config', 'giveaways.json');
 
-function loadGiveaways() { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return []; } }
+function loadGiveaways() { try { const value = JSON.parse(fs.readFileSync(file, 'utf8')); return Array.isArray(value) ? value : []; } catch { return []; } }
 function saveGiveaways(list) {
   const dir = path.dirname(file);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
@@ -35,10 +35,10 @@ async function startGiveaway(channel, prize, durationMs, winners) {
   const safeDuration = Math.max(5000, Number(durationMs) || 60000);
   const safeWinners = Math.max(1, Number(winners) || 1);
   const safePrize = String(prize).slice(0, 256).trim() || 'Preis';
-  const id = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const id = `${Date.now()}_${crypto.randomUUID()}`;
   const g = { id, prize: safePrize, winners: safeWinners, endTime: Date.now() + safeDuration, entries: [], channelId: channel.id, active: true };
   let sent;
-  try { sent = await channel.send({ components: [giveawayContainer(g)], flags: MessageFlags.IsComponentsV2 }); } catch (err) { throw new Error(`Giveaway-Nachricht konnte nicht gesendet werden: ${err.message}`); }
+  try { sent = await channel.send({ components: [giveawayContainer(g)], flags: MessageFlags.IsComponentsV2, allowedMentions: { parse: [] } }); } catch (err) { throw new Error(`Giveaway-Nachricht konnte nicht gesendet werden: ${err.message}`); }
   g.messageId = sent.id;
   const list = loadGiveaways(); list.push(g); saveGiveaways(list); return g;
 }
@@ -71,6 +71,7 @@ async function finalizeGiveaway(client, g) {
   target.active = false;
   const winners = drawWinners(target);
   target.winnersDrawn = winners;
+  target.winnerHistory = [...new Set([...(target.winnerHistory || []), ...winners])];
   saveGiveaways(list.map(x => (x.id === target.id ? target : x)));
   const container = new ContainerBuilder().setAccentColor(0x5865F2);
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## 🎉 Giveaway beendet\n**Preis:** ${target.prize}\n**Gewinner:** ${winners.length ? winners.map(id => `<@${id}>`).join(', ') : 'Keine Teilnehmer 😔'}`));
@@ -88,8 +89,9 @@ async function rerollGiveaway(client, id) {
   const list = loadGiveaways();
   const g = list.find(x => x.id === id && !x.active);
   if (!g) return { ok: false, error: 'Giveaway nicht gefunden oder noch aktiv.' };
-  const winners = drawWinners(g, g.winnersDrawn || []);
+  const winners = drawWinners(g, g.winnerHistory || g.winnersDrawn || []);
   g.winnersDrawn = winners;
+  g.winnerHistory = [...new Set([...(g.winnerHistory || []), ...winners])];
   const container = new ContainerBuilder().setAccentColor(0x5865F2);
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## 🔁 Giveaway Reroll\n**Preis:** ${g.prize}\n**Neue Gewinner:** ${winners.length ? winners.map(uid => `<@${uid}>`).join(', ') : 'Keine Teilnehmer übrig 😔'}`));
   container.addActionRowComponents(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId(`bww_giveaway_reroll_${g.id}`).setLabel('🔁 Neu ziehen').setStyle(ButtonStyle.Primary)));
