@@ -5,6 +5,7 @@ const welcome = require('./events/welcome');
 const interactions = require('./events/interactions');
 const { startGiveawayLoop } = require('./utils/giveaway');
 const { updateStatusMessage, formatUptime } = require('./utils/status');
+const { isConfigured: databaseConfigured, upsertBotStatus, syncGuilds, markOffline } = require('./utils/database');
 
 const token = process.env.DISCORD_TOKEN || '';
 if (!token) {
@@ -18,6 +19,18 @@ const client = new Client({
   partials: [Partials.GuildMember],
 });
 
+async function syncDatabase(bot, status = 'online') {
+  if (!databaseConfigured()) return;
+  try {
+    await Promise.all([
+      upsertBotStatus(bot, status),
+      syncGuilds(bot)
+    ]);
+  } catch (err) {
+    console.error('[BWW] Datenbank-Synchronisierung fehlgeschlagen:', err.message);
+  }
+}
+
 client.once(Events.ClientReady, async (bot) => {
   const rest = new REST({ version: '10' }).setToken(token);
   try {
@@ -27,8 +40,11 @@ client.once(Events.ClientReady, async (bot) => {
     console.error('Slash-Command Registrierung fehlgeschlagen:', err.message);
     console.log(`BWW Bot online als ${bot.user.tag} (Commands nicht aktualisiert)`);
   }
+
+  await syncDatabase(bot, 'online');
+  setInterval(() => syncDatabase(bot, 'online'), 30 * 1000);
   startGiveawayLoop(client);
-  // Status auf online setzen
+
   try {
     const cfg = require('./config').load();
     const mode = cfg.status?.mode || 'online';
@@ -36,7 +52,7 @@ client.once(Events.ClientReady, async (bot) => {
       await updateStatusMessage(client, mode, mode === 'online' ? { uptime: formatUptime(client.uptime) } : {});
     }
   } catch {}
-  // alle 5 Min Status timestamp aktualisieren wenn online
+
   setInterval(() => {
     try {
       const cfg = require('./config').load();
@@ -46,6 +62,9 @@ client.once(Events.ClientReady, async (bot) => {
     } catch {}
   }, 5 * 60 * 1000);
 });
+
+client.on(Events.GuildCreate, () => syncDatabase(client, 'online'));
+client.on(Events.GuildDelete, () => syncDatabase(client, 'online'));
 
 client.on(Events.GuildMemberAdd, (member) => {
   Promise.resolve(welcome(member)).catch((err) => console.error('Welcome Fehler:', err.message));
@@ -60,15 +79,16 @@ client.on(Events.InteractionCreate, (interaction) => {
   });
 });
 
-// Vor dem Beenden versuchen Status auf offline zu setzen (best effort)
-process.on('SIGTERM', async () => {
+async function shutdown(signal) {
   try { await updateStatusMessage(client, 'offline'); } catch {}
-  process.exit(0);
-});
-process.on('SIGINT', async () => {
-  try { await updateStatusMessage(client, 'offline'); } catch {}
-  process.exit(0);
-});
+  try { await markOffline(client); } catch (err) {
+    console.error('[BWW] Offline-Status konnte nicht gespeichert werden:', err.message);
+  }
+  process.exit(signal === 'SIGINT' ? 130 : 143);
+}
+
+process.on('SIGTERM', () => shutdown('SIGTERM'));
+process.on('SIGINT', () => shutdown('SIGINT'));
 
 client.login(token).catch((err) => {
   console.error('Login-Fehler:', err && (err.stack || err.message || err));
