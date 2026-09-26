@@ -130,56 +130,52 @@ async function tick() {
       status.lastResult = 'installed';
       status.lastCount = applied;
       status.lastFiles = [`Erstinstallation: ${applied} Dateien`];
-      status.sha = head;
-      logger.info(`Auto-Update: Erstinstallation mit ${applied} Dateien (Commit ${head.slice(0, 7)}).`);
     } else {
-      let cmp;
+      let cmp = null;
       try {
         cmp = await gh(`/repos/${OWNER}/${REPO}/compare/${base}...${BRANCH}`);
       } catch (err) {
         if (err?.status !== 404) throw err;
         logger.warn('Auto-Update: gespeicherter SHA ist nicht mehr vergleichbar – führe sicheren Vollsync durch.');
+      }
+
+      if (!cmp) {
         const result = await fullSync(backups);
         applied = result.count;
         head = result.sha;
-        cmp = null;
-      }
-      if (!cmp) {
-        // Vollsync wurde bereits ausgeführt; die endgültige Manifest-/SHA-Prüfung folgt unten.
       } else {
         head = cmp?.head?.sha || await latestCommitSha();
 
-      if (cmp?.files?.length >= 300 || cmp?.truncated) {
-        logger.warn('Auto-Update: GitHub Compare ist möglicherweise abgeschnitten – führe sicheren Vollsync durch.');
-        const result = await fullSync();
-        applied = result.count;
-        head = result.sha;
-      } else if (!cmp.files || cmp.files.length === 0) {
-        errorCount = 0;
-        status.lastResult = 'up-to-date';
-        status.lastCount = 0;
-        status.lastFiles = [];
-        status.lastError = null;
-        status.sha = head || base;
-        return;
-      } else {
-        const touched = [];
-        const installRef = { value: false };
-        for (const f of cmp.files) {
-          if (skipped(f.filename)) continue;
-          await applyFile(f, head, touched, installRef, backups);
-        }
-        applied = touched.length;
-        needsInstall = installRef.value;
-        if (applied) {
-          status.lastResult = 'updated';
+        if (cmp?.files?.length >= 300 || cmp?.truncated) {
+          logger.warn('Auto-Update: GitHub Compare ist möglicherweise abgeschnitten – führe sicheren Vollsync durch.');
+          const result = await fullSync(backups);
+          applied = result.count;
+          head = result.sha;
+        } else if (!cmp.files || cmp.files.length === 0) {
+          errorCount = 0;
+          status.lastResult = 'up-to-date';
+          status.lastCount = 0;
+          status.lastFiles = [];
+          status.lastError = null;
+          status.sha = head || base;
+          return;
+        } else {
+          const touched = [];
+          const installRef = { value: false };
+          for (const f of cmp.files) {
+            if (skipped(f.filename)) continue;
+            await applyFile(f, head, touched, installRef, backups);
+          }
+          applied = touched.length;
+          needsInstall = installRef.value;
+          status.lastResult = applied ? 'updated' : 'up-to-date';
           status.lastCount = applied;
           status.lastFiles = touched;
         }
       }
     }
 
- = await latestCommitSha();
+    const confirmedHead = await latestCommitSha();
     if (confirmedHead !== head) {
       throw new Error(`Remote-Branch hat sich während des Syncs geändert (${head.slice(0, 7)} → ${confirmedHead.slice(0, 7)}). Änderungen wurden verworfen.`);
     }
