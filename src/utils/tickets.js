@@ -41,7 +41,7 @@ async function createTicket(guild, config, user, reasonLabel) {
     const intro = new ContainerBuilder().setAccentColor(0x2F3136);
     intro.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## 🎫 Neues Ticket\n**Ersteller:** ${user}\n**Grund:** ${reasonLabel}\n\nBeschreibe dein Anliegen. Ein Mitarbeiter wird sich gleich um dich kümmern.`));
     intro.addActionRowComponents(new ActionRowBuilder().addComponents(new ButtonBuilder().setCustomId('bww_ticket_close').setLabel('🔒 Ticket schließen').setStyle(ButtonStyle.Danger)));
-    await channel.send({ components: [intro], flags: MessageFlags.IsComponentsV2 }).catch(() => {});
+    await channel.send({ components: [intro], flags: MessageFlags.IsComponentsV2, allowedMentions: { parse: [] } }).catch(() => {});
     return { ok: true, channel };
   } catch (err) { return { ok: false, error: `Ticket konnte nicht erstellt werden: ${err.message}` }; }
 }
