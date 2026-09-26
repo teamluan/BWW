@@ -5,7 +5,14 @@ const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacing
 const file = path.join(__dirname, '..', '..', 'config', 'polls.json');
 
 function loadPolls() { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return {}; } }
-function savePolls(polls) { const dir = path.dirname(file); if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(file, JSON.stringify(polls, null, 2)); return polls; }
+function savePolls(polls) {
+  const dir = path.dirname(file);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const tmp = file + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(polls, null, 2));
+  fs.renameSync(tmp, file);
+  return polls;
+}
 function getPoll(id) { const polls = loadPolls(); return polls[id] || null; }
 function setPoll(id, data) { const polls = loadPolls(); polls[id] = data; savePolls(polls); }
 function deletePoll(id) { const polls = loadPolls(); if (!(id in polls)) return false; delete polls[id]; savePolls(polls); return true; }

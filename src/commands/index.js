@@ -32,9 +32,7 @@ const commands = [
   ]},
   { name: 'setup', description: 'Zeigt die Setup-Hilfe.' },
   { name: 'verify', description: 'Sendet das konfigurierte Verify-System.' },
-  { name: 'nachrichtauswahl', description: 'Sendet das Dokumenten-Auswahl-Men\u00FC.', options: [
-    { name: 'text', description: 'Optionaler Einleitungstext am Anfang', type: 3, required: false }
-  ]},
+
   { name: 'ticket', description: 'Sendet das Ticket-Panel.' },
   { name: 'giveaway', description: 'Startet ein Giveaway.', options: [
     { name: 'preis', description: 'Was wird verlost?', type: 3, required: true },
@@ -98,7 +96,7 @@ const commands = [
   { name: 'setup-permission', description: 'Rollenberechtigung f\u00FCr Commands setzen.', options: [
     { name: 'command', description: 'Command', type: 3, required: true, choices: [
       { name: 'nachricht', value: 'nachricht' }, { name: 'setup', value: 'setup' }, { name: 'verify', value: 'verify' },
-      { name: 'nachrichtauswahl', value: 'nachrichtauswahl' }, { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'panel-create', value: 'panel-create' }, { name: 'panel-send', value: 'panel-send' }, { name: 'panel-delete', value: 'panel-delete' }, { name: 'panel-list', value: 'panel-list' }, { name: 'panel-add-button', value: 'panel-add-button' }, { name: 'umfrage', value: 'umfrage' }, { name: 'setup-status', value: 'setup-status' }, { name: 'wartung', value: 'wartung' }, { name: 'restart', value: 'restart' },
+      { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'panel-create', value: 'panel-create' }, { name: 'panel-send', value: 'panel-send' }, { name: 'panel-delete', value: 'panel-delete' }, { name: 'panel-list', value: 'panel-list' }, { name: 'panel-add-button', value: 'panel-add-button' }, { name: 'umfrage', value: 'umfrage' }, { name: 'setup-status', value: 'setup-status' }, { name: 'wartung', value: 'wartung' }, { name: 'restart', value: 'restart' },
       { name: 'kick', value: 'kick' }, { name: 'ban', value: 'ban' }, { name: 'unban', value: 'unban' }, { name: 'timeout', value: 'timeout' },
       { name: 'giverole', value: 'giverole' }, { name: 'removerole', value: 'removerole' }
     ]},
