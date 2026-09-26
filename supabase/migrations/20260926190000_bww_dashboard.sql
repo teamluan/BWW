@@ -10,7 +10,7 @@ begin
     select tablename
     from pg_catalog.pg_tables
     where schemaname = 'public'
-      and tablename like 'bw\\_%' escape '\\'
+      and left(tablename, 3) = 'bw_'
   loop
     execute format('drop table if exists public.%I cascade', table_name);
   end loop;
