@@ -1,0 +1,33 @@
+name: Sync BWW to Teufel2211/bww
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+
+      - name: Push main to mirror repository
+        env:
+          SYNC_TOKEN: ${{ secrets.BWW_SYNC_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${SYNC_TOKEN}" ]; then
+            echo "::error::BWW_SYNC_TOKEN is not configured."
+            exit 1
+          fi
+
+          git remote add mirror "https://x-access-token:${SYNC_TOKEN}@github.com/Teufel2211/bww.git"
+          git push mirror HEAD:main --force
