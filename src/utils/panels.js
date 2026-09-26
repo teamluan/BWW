@@ -5,7 +5,7 @@ const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacing
 const file = path.join(__dirname, '..', '..', 'config', 'panels.json');
 
 function loadPanels() {
-  try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return {}; }
+  try { const value = JSON.parse(fs.readFileSync(file, 'utf8')); return value && typeof value === 'object' && !Array.isArray(value) ? value : {}; } catch { return {}; }
 }
 function savePanels(panels) {
   const dir = path.dirname(file);
@@ -45,7 +45,7 @@ function addPanelMessage(name, channelId, messageId) {
 }
 function panelContainer(panel, panelName) {
   const container = new ContainerBuilder().setAccentColor(0x2F3136);
-  const intro = panel.intro || `Panel: ${panelName}`;
+  const intro = String(panel.intro || `Panel: ${panelName}`).slice(0, 4000);
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${intro}`));
   if (panel.buttons && panel.buttons.length) {
     container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
@@ -62,7 +62,7 @@ function panelContainer(panel, panelName) {
 }
 function buttonResponseContainer(panelName, button) {
   const container = new ContainerBuilder().setAccentColor(0x2F3136);
-  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(String(button.text)));
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(String(button.text).slice(0, 4000)));
   return container;
 }
 
