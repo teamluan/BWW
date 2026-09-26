@@ -83,7 +83,7 @@ async function applyFile(f, ref, touched, needsInstallRef, backups) {
   backups.set(f.filename, fs.existsSync(target) ? fs.readFileSync(target) : null);
   if (f.status === 'removed') { removeLocal(f.filename); touched.push(`-${f.filename}`); return; }
   if (f.previous_filename && f.previous_filename !== f.filename) {
-    const previous = path.join(ROOT, f.previous_filename);
+    const previous = safeLocalPath(f.previous_filename);
     backups.set(f.previous_filename, fs.existsSync(previous) ? fs.readFileSync(previous) : null);
     removeLocal(f.previous_filename);
   }
