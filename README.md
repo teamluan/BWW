@@ -1,129 +1,74 @@
 # BWW Discord Bot
 
-Discord.js-Bot ohne Website und ohne Datenbank. Die Konfiguration wird lokal in `config/config.json` (plus `config/giveaways.json`, `config/panels.json`) gespeichert.
+Discord.js-Bot mit öffentlichem Dashboard und Supabase-Datenbank.
 
-## Funktionen
-- `/nachricht text bild` sendet einen Container (Components V2) in den aktuellen Channel.
-- Vollständiges Welcome-System mit `{user}`, `{username}`, `{displayname}`, `{server}`, `{id}`, `{count}`.
-- Verify-System mit Button und frei wählbarer Verifizierungsrolle.
-- Ticket-System mit Kategorie + Rolle, Select-Menü + Close-Button.
-- **Custom Panels**: Bis zu 50 Buttons pro Panel, Components V2, speichern+senden, `panel-add-button` für unbegrenzt.
-- **Status-Embed**: `🟢 Online`/`🔴 Offline`/`🟡 Wartung` in festem Channel (`/setup-status`, `/wartung`).
-- Giveaway-System mit Teilnehmen/Verlassen, vorzeitigem Beenden und Reroll per Button.
-- Moderations-Commands: `/kick`, `/ban`, `/unban`, `/timeout`, `/giverole`, `/removerole`.
-- Rollenbezogene Command-Berechtigungen pro Command über `/setup-permission`.
-- Administratoren dürfen das Setup verwalten und alle Commands benutzen.
+## Architektur
 
-## Start
-1. Node.js installieren (22+).
-2. `npm install`
-3. `.env.example` zu `.env` kopieren und `DISCORD_TOKEN` eintragen.
-4. `npm start` (`node sync.js` – startet Bot als Kindprozess mit Auto-Update)
+- `src/` → Discord-Bot
+- `website/` → Next.js-Dashboard
+- `supabase/migrations/` → versionierte Datenbank-Schemata
+- `config/*.json` → lokale Bot-Konfiguration, bis die jeweiligen Systeme vollständig migriert sind
+- Supabase speichert Bot-Status und die öffentliche Guild-Übersicht.
+- Die Website liest ausschließlich öffentliche, per RLS freigegebene Daten.
+- Der Bot verwendet ausschließlich serverseitig `SUPABASE_SECRET_KEY`.
 
-Der Bot benötigt mindestens die Discord-Berechtigungen `View Channels`, `Send Messages`, `Embed Links`, `Manage Roles` sowie die Gateway Intents **Server Members Intent** (Welcome) und **Moderate Members** (Timeout). Für `/kick`, `/ban`, `/timeout`, `/giverole` und `/removerole` benötigt der Bot die jeweiligen Berechtigungen (Kick Members, Ban Members, Moderate Members, Manage Roles) und eine entsprechend hohe Rollenposition.
+## Website
 
-### Setup
-- `/setup-welcome` → Channel + Welcome-Text (+ optional Titel).
-- `/setup-verify` → Channel + Rolle + Verify-Text.
-- `/setup-ticket` → Kategorie + Rolle.
-- `/setup-status` → Channel für Status-Embed (🟢/🔴/🟡).
-- `/setup-permission` → Rolle für einen Command erlauben/entfernen.
-- `/verify` → konfiguriertes Verify-Panel senden.
+Die Website liegt direkt in `website/` und verwendet Next.js 16.3.6.
 
-## Commands
-- `/nachricht text bild?` → Container senden (V2, mit MediaGallery für Bild).
-- `/ticket` → Ticket-Panel senden.
-- `/giveaway preis dauer gewinner?` → Giveaway starten (Dauer in Sekunden).
-- `/panel-create name intro button1_label button1_text ... (bis 10)` → Custom Panel speichern+senden (Components V2).
-- `/panel-add-button name label text` → Button zu bestehendem Panel hinzufügen (bis 50, danach Select-Menü).
-- `/panel-send name` → Gespeichertes Panel erneut senden.
-- `/panel-delete name` → Panel + zugehörige Nachrichten löschen.
-- `/panel-list` → Alle Panels listen.
-- `/setup-status channel` → Status-Embed erstellen.
-- `/wartung aktiv grund?` → Wartungsmodus (🟡) an/aus.
-- `/restart` → Bot neu starten (nur Administrator).
-- `/kick user grund?` → Mitglied kicken.
-- `/ban user grund?` → Benutzer bannen.
-- `/unban user` → Benutzer entbannen.
-- `/timeout user dauer grund?` → Mitglied für `dauer` Minuten pausieren.
-- `/giverole user rolle` → Rolle vergeben.
-- `/removerole user rolle` → Rolle entfernen.
+Lokal:
 
-## Giveaway
-- **🎉 Teilnehmen** und **❌ Verlassen** steuern die Teilnahme (Teilnehmerzahl wird live aktualisiert).
-- **⏹️ Beenden** beendet das Giveaway vorzeitig und zieht die Gewinner.
-- Nach dem Ende erscheint **🔁 Neu ziehen** für einen neuen Gewinner.
-- Beenden/Reroll sind nur für Administratoren oder Rollen mit `giveaway`-Berechtigung möglich.
-
-## Panels
-- **Panels**: `panel-create` speichert `intro` + bis zu 10 Buttons direkt, `panel-add-button` erweitert auf 50. `panel-delete` entfernt gespeicherte Panels und zugehörige Nachrichten.
-
-## Status
-- **🟢 Online** `0x57F287`, **🔴 Offline** `0xED4245`, **🟡 Wartung** `0xFEE75C` – `Container` V2 mit `Letztes Update: <t:...:R>` + `Uptime`.
-- `/setup-status` legt Channel/Message fest, `/wartung aktiv:true grund:Update` setzt gelb, `aktiv:false` zurück auf grün, `SIGTERM`/`SIGINT` versucht rot.
-
-## Rollensteuerung
-Neue Commands (z. B. `/kick`, `/panel-create`) sind standardmäßig nur für Administratoren nutzbar. Weitere Rollen werden pro Command freigeschaltet:
-
-```
-/setup-permission command:kick role:@Moderator erlauben:true
-/setup-permission command:panel-create role:@Moderator erlauben:true
+```bash
+cd website
+npm install
+copy .env.example .env.local
+npm run dev
 ```
 
----
+Für Vercel: Repository importieren und **Root Directory = `website`** setzen.
 
-# Auto-Update auf KataBump
-
-`sync.js` ist der Startpunkt (eine Startdatei): Es startet den Bot (`node src/index.js`)
-als Kindprozess und aktualisiert den Code automatisch über die **GitHub-API** — ganz ohne
-lokales git. Es vergleicht den letzten Commit (`base...main`) und lädt nur die geänderten
-Dateien als Raw-Download herunter, entfernt gelöschte Dateien und startet nach einem Update neu.
-
-## Aktivierung (env-gesteuert)
-
-In den Umgebungsvariablen (oder `.env`):
+Benötigte Website-Variablen:
 
 ```dotenv
-AUTO_UPDATE=true
-AUTO_UPDATE_INTERVAL_MS=120000   # Standard 2 Minuten
+NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxxxxxxxxxxxxxx
 ```
 
-- `AUTO_UPDATE=true` → Auto-Update aktiv.
-- `AUTO_UPDATE_INTERVAL_MS` → Prüf-Intervall in Millisekunden.
+Die Supabase Secret Key darf niemals in die Website-Umgebung oder ins Frontend gelangen.
 
-## Einrichtung auf KataBump
+## Datenbank
 
-1. **Startdatei = `sync.js`** (die einzige gestartete Datei).
-2. `DISCORD_TOKEN` als Umgebungsvariable setzen.
-3. `AUTO_UPDATE=true` setzen.
-4. Server starten.
-
-Beim ersten Start installiert `sync.js` alle Repo-Dateien (Erstinstallation) und startet den Bot.
-Ab dann läuft die Endlos-Schleife über die API.
-
-## Ablauf pro Zyklus
+Die Migration liegt unter:
 
 ```
-Warten (Intervall, Standard 2 Min)
-  └─ GitHub-API: compare {letzter SHA}...main
-       ├─ geändert? → geänderte Dateien laden + npm install (falls package.json) + Neustart
-       └─ unverändert → warten → erneut prüfen
+supabase/migrations/20260926190000_bww_dashboard.sql
 ```
 
-## Neustart
+Sie erstellt:
 
-Der Bot lässt sich über `/restart` (nur Administrator) nur neu starten. Zusätzlich überwacht
-`sync.js` eine Watchdog-Datei: Legt man auf dem Server eine Datei mit dem Namen
-`restart.requested` im Container-Root an, startet der Bot beim nächsten Check (alle 3 Sekunden)
-automatisch neu und löscht die Datei wieder. Lokal: `C:\Users\Steven\Downloads\BwW\BwW-Neustart.bat` (psftp) und `start-offline.bat` (SFTP + API `control.katabump.com` `ptlc_...`) für Offline-Start.
+- `bww_bot_status` → Online-/Offline-Status, Ping, Uptime und Mitgliederzahlen
+- `bww_guilds` → öffentliche Guild-Übersicht
 
-## Hinweise
+RLS ist aktiviert. Die Website darf nur lesen; Schreibrechte bleiben beim Bot.
 
-- Kein `git` auf dem Server nötig — nur `node`, `npm` und Internet.
-- `.env`, `config/config.json`, `config/giveaways.json`, `config/panels.json`, `.deploy-sha` und `sync.js` selbst werden nie überschrieben (jetzt ohne `sync.js` in `SKIP_FILES` nach `3a06f07` doch überschrieben für Watchdog/Webhook).
-  Darum bleiben Tokens und lokale Konfiguration erhalten.
-- Der Stand wird in `.deploy-sha` gespeichert (letzter angewendeter Commit).
-- Nach 5 Fehlern deaktiviert sich das Auto-Update selbst (Logs prüfen).
-- Der Bot nutzt **keine Datenbank und kein Dashboard** — der gesamte Zustand liegt in
-  `config/*.json` auf der Platte.
-- **Components V2**: Alle Embeds sind jetzt `Container`+`TextDisplay`+`Section`/`MediaGallery` mit `flags: IsComponentsV2` (Discord API, `discord.js@14.25.0`).
+**Hinweis:** Neue Tabellen im öffentlichen Schema werden bei Supabase nicht mehr automatisch über die Data API freigegeben. Die Migration setzt die benötigten Grants explizit. citeturn0search1turn0search5
+
+## Bot-Datenbank-Synchronisierung
+
+Wenn `SUPABASE_URL` und `SUPABASE_SECRET_KEY` gesetzt sind, synchronisiert der Bot:
+
+- beim Start
+- alle 30 Sekunden
+- beim Betreten/Verlassen eines Guilds
+
+Beim Herunterfahren wird der Status auf `offline` gesetzt.
+
+## Start
+
+1. Node.js 22+
+2. `npm install`
+3. `.env.example` → `.env`
+4. Supabase-Migration ausführen
+5. `npm start`
+
+Weitere Bot-Funktionen und Commands stehen weiter unten in dieser Dokumentation.
