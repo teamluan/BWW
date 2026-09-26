@@ -176,6 +176,14 @@ module.exports = async (interaction, client) => {
   }
   if (command === 'panel-list') {
     if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
+    const panels = loadPanels();
+    const names = Object.keys(panels);
+    if (!names.length) return interaction.reply({ content: '📭 Keine Panels gespeichert.', ...EPHEMERAL });
+    const container = new ContainerBuilder().setAccentColor(0x2F3136);
+    const lines = names.map(n => `• \`${n}\` – ${panels[n].buttons.length} Buttons – ${(panels[n].intro || '').slice(0, 80)}`).join('\n');
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## Gespeicherte Panels (${names.length})\n${lines}`));
+    return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
+  }
   if (command === 'kick') {
     const member = interaction.options.getMember('user'); const reason = interaction.options.getString('grund') || 'Kein Grund angegeben';
     if (!member) return interaction.reply({ content: '❌ Mitglied nicht gefunden.', ...EPHEMERAL });
