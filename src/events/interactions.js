@@ -177,14 +177,6 @@ module.exports = async (interaction, client) => {
   }
   if (command === 'panel-list') {
     if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-    const panels = loadPanels();
-    const names = Object.keys(panels);
-    if (!names.length) return interaction.reply({ content: '📭 Keine Panels gespeichert.', ...EPHEMERAL });
-    const container = new ContainerBuilder().setAccentColor(0x2F3136);
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## Gespeicherte Panels (${names.length})\n${names.map(n => `• \`${n}\` – ${panels[n].buttons.length} Buttons – ${(panels[n].intro || '').slice(0, 80)}`).join('\n')}`));
-    return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
-  }
-  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
     const name = interaction.options.getString('name', true).toLowerCase().replace(/[^a-z0-9-_]/g, '').slice(0, 32);
     const titel = interaction.options.getString('titel', true);
     const file = interaction.options.getAttachment('file');
