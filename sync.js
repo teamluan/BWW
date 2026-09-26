@@ -7,7 +7,7 @@ const LOG_ENV = String(process.env.LOG_FILE || 'logs/sync.log');
 const LOG_FILE = LOG_ENV.startsWith('/') || /^[A-Za-z]:[\\/]/.test(LOG_ENV) ? path.join(ROOT, '.logs', 'sync.log') : path.join(ROOT, LOG_ENV);
 try { fs.mkdirSync(path.dirname(LOG_FILE), { recursive: true }); } catch (_) {}
 const WEBHOOK_URL = String(process.env.LOG_WEBHOOK_URL || process.env.DISCORD_LOG_WEBHOOK || '').trim();
-const WEBHOOK_LEVEL_RAW = String(process.env.LOG_WEBHOOK_LEVEL || 'info').toLowerCase();
+const WEBHOOK_LEVEL_RAW = String(process.env.LOG_WEBHOOK_LEVEL || 'warn').toLowerCase();
 const WEBHOOK_LEVEL = ['error', 'warn', 'info'].includes(WEBHOOK_LEVEL_RAW) ? WEBHOOK_LEVEL_RAW : 'info';
 let webhookQueue = Promise.resolve();
 function shouldNotify(level) { const l = String(level).toLowerCase(); if (WEBHOOK_LEVEL === 'error') return ['error', 'fatal', 'unhandled'].includes(l); if (WEBHOOK_LEVEL === 'warn') return ['warn', 'error', 'fatal', 'unhandled'].includes(l); return true; }
@@ -20,27 +20,55 @@ function emit(level, args) { const line = `[${new Date().toISOString()}] [${leve
 const logger = { info: (...a) => emit('INFO', a), warn: (...a) => emit('WARN', a), error: (...a) => emit('ERROR', a) };
 process.on('uncaughtException', (err) => { const msg = (err && err.stack) || err; writeToFile(`[${new Date().toISOString()}] [FATAL] ${msg}\n`); console.error(`[FATAL] ${msg}`); notifyWebhook('FATAL', `[FATAL] ${msg}`); process.exit(1); });
 process.on('unhandledRejection', (reason) => { const msg = (reason && reason.stack) || reason; writeToFile(`[${new Date().toISOString()}] [UNHANDLED] ${msg}\n`); console.error(`[UNHANDLED] ${msg}`); notifyWebhook('UNHANDLED', `[UNHANDLED] ${msg}`); });
-const OWNER = 'teamluan'; const REPO = 'BWW'; const BRANCH = 'main'; const API = 'https://api.github.com'; const RAW = `https://raw.githubusercontent.com/${OWNER}/${REPO}/${BRANCH}/`; const SHA_FILE = path.join(ROOT, '.deploy-sha'); const SKIP_DIRS = new Set(['.git', '.github', 'node_modules', 'logs', 'data', 'backups']); const SKIP_FILES = new Set(['.env', '.env.local', '.deploy-sha', '.gitignore', 'logs', 'giveaways.json', 'config.json', 'panels.json']);
+const OWNER = 'teamluan'; const REPO = 'BWW'; const BRANCH = 'main'; const API = 'https://api.github.com'; const SHA_FILE = path.join(ROOT, '.deploy-sha'); const MANIFEST_FILE = path.join(ROOT, '.sync-manifest.json'); const SKIP_DIRS = new Set(['.git', '.github', 'node_modules', 'logs', 'data', 'backups']); const SKIP_FILES = new Set(['.env', '.env.local', '.deploy-sha', '.gitignore', 'logs', 'giveaways.json', 'config.json', 'panels.json']);
 const ENABLED = process.env.AUTO_UPDATE === 'true'; const INTERVAL_MS = Number(process.env.AUTO_UPDATE_INTERVAL_MS) || 120000; const INTERVAL_S = Math.round(INTERVAL_MS / 1000);
 function skipped(file) { const parts = file.split('/'); return parts.some((s) => SKIP_DIRS.has(s)) || SKIP_FILES.has(parts[parts.length - 1]); }
 async function retry(fn, tries = 3) { let lastErr; for (let i = 0; i < tries; i++) { try { return await fn(); } catch (err) { lastErr = err; if (i < tries - 1) await new Promise((r) => setTimeout(r, 1000 * (i + 1))); } } throw lastErr; }
 async function gh(route) { const r = await retry(async () => { const res = await fetch(`${API}${route}`, { headers: { 'User-Agent': 'bww-selfsync', Accept: 'application/vnd.github+json' }, signal: AbortSignal.timeout(30000) }); if (!res.ok) { const err = new Error(`GitHub-API ${res.status}: ${route}`); err.status = res.status; throw err; } return res; }); return r.json(); }
-async function fetchRaw(file) { const r = await retry(async () => { const encoded = file.split('/').map(encodeURIComponent).join('/'); const res = await fetch(RAW + encoded, { headers: { 'User-Agent': 'bww-selfsync' }, signal: AbortSignal.timeout(30000) }); if (!res.ok) throw new Error(`Download ${res.status}: ${file}`); return res; }); return Buffer.from(await r.arrayBuffer()); }
+async function fetchRaw(file, ref) {
+  const r = await retry(async () => {
+    const encoded = file.split('/').map(encodeURIComponent).join('/');
+    const res = await fetch(`https://raw.githubusercontent.com/${OWNER}/${REPO}/${encodeURIComponent(ref)}/${encoded}`, { headers: { 'User-Agent': 'bww-selfsync' }, signal: AbortSignal.timeout(30000) });
+    if (!res.ok) throw new Error(`Download ${res.status}: ${file} @ ${ref}`);
+    return res;
+  });
+  return Buffer.from(await r.arrayBuffer());
+}
+function safeLocalPath(file) {
+  const normalized = path.posix.normalize(String(file).replaceAll('\\', '/'));
+  if (!normalized || normalized === '.' || normalized.startsWith('../') || normalized.includes('/../') || normalized.startsWith('/')) {
+    throw new Error(`Unsicherer Dateipfad: ${file}`);
+  }
+  return path.join(ROOT, ...normalized.split('/'));
+}
 function writeLocal(file, buf) {
-  const target = path.join(ROOT, file);
+  const target = safeLocalPath(file);
   fs.mkdirSync(path.dirname(target), { recursive: true });
-  const tmp = target + '.tmp';
+  const tmp = `${target}.${process.pid}.${Date.now()}.tmp`;
   fs.writeFileSync(tmp, buf);
-  fs.renameSync(tmp, target);
+  try { fs.renameSync(tmp, target); } catch (err) { try { fs.rmSync(tmp, { force: true }); } catch (_) {} throw err; }
 }
 function removeLocal(file) { try { fs.unlinkSync(path.join(ROOT, file)); } catch (_) {} }
 function readSha() { try { return fs.readFileSync(SHA_FILE, 'utf8').trim(); } catch (_) { return ''; } }
+function readManifest() { try { const value = JSON.parse(fs.readFileSync(MANIFEST_FILE, 'utf8')); return Array.isArray(value) ? value : []; } catch (_) { return []; } }
+function writeManifest(files) { writeLocal('.sync-manifest.json', Buffer.from(JSON.stringify([...new Set(files)].sort(), null, 2))); }
 function writeSha(sha) { try { writeLocal('.deploy-sha', Buffer.from(sha)); } catch (err) { logger.warn(`Auto-Update: SHA-Datei nicht schreibbar: ${err.message}`); } }
 function latestCommitSha() { return gh(`/repos/${OWNER}/${REPO}/commits/${BRANCH}`).then((c) => c.sha); }
-async function fullSync() { const sha = await latestCommitSha(); const tree = await gh(`/repos/${OWNER}/${REPO}/git/trees/${sha}?recursive=1`); const files = (tree.tree || []).filter((e) => e.type === 'blob' && !skipped(e.path)); for (const e of files) writeLocal(e.path, await fetchRaw(e.path)); return { sha, count: files.length }; }
-async function applyFile(f, touched, needsInstallRef, backups) {
+async function fullSync() {
+  const sha = await latestCommitSha();
+  const tree = await gh(`/repos/${OWNER}/${REPO}/git/trees/${sha}?recursive=1`);
+  if (tree.truncated) throw new Error('GitHub Tree ist zu groß/abgeschnitten; Vollsync abgebrochen.');
+  const files = (tree.tree || []).filter((e) => e.type === 'blob' && !skipped(e.path) && !e.path.startsWith('.git/')).map(e => e.path);
+  const previous = new Set(readManifest());
+  const current = new Set(files);
+  for (const file of files) writeLocal(file, await fetchRaw(file, sha));
+  for (const file of previous) if (!current.has(file) && !skipped(file)) removeLocal(file);
+  writeManifest(files);
+  return { sha, count: files.length };
+}
+async function applyFile(f, ref, touched, needsInstallRef, backups) {
   if (f.filename === 'package.json' || f.filename === 'package-lock.json') needsInstallRef.value = true;
-  const target = path.join(ROOT, f.filename);
+  const target = safeLocalPath(f.filename);
   backups.set(f.filename, fs.existsSync(target) ? fs.readFileSync(target) : null);
   if (f.status === 'removed') { removeLocal(f.filename); touched.push(`-${f.filename}`); return; }
   if (f.previous_filename && f.previous_filename !== f.filename) {
@@ -48,7 +76,7 @@ async function applyFile(f, touched, needsInstallRef, backups) {
     backups.set(f.previous_filename, fs.existsSync(previous) ? fs.readFileSync(previous) : null);
     removeLocal(f.previous_filename);
   }
-  const buf = await fetchRaw(f.filename);
+  const buf = await fetchRaw(f.filename, ref);
   if (/\.(js|cjs|mjs)$/i.test(f.filename)) {
     const validationFile = path.join(ROOT, `.sync-validate-${process.pid}-${Date.now()}.js`);
     try {
