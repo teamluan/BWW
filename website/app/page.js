@@ -34,8 +34,8 @@ function formatUptime(seconds) {
 
 export default async function Home() {
   const [statusRows, guildRows] = await Promise.all([
-    loadJson('bww_bot_status?select=*&id=eq.primary&limit=1'),
-    loadJson('bww_guilds?select=guild_id,name,member_count,icon_url,updated_at&order=name.asc')
+    loadJson('bw_bot_status?select=*&id=eq.primary&limit=1'),
+    loadJson('bw_guilds?select=guild_id,name,member_count,icon_url,updated_at&order=name.asc')
   ]);
 
   const status = statusRows?.[0] ?? null;
