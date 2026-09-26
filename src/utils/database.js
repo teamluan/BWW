@@ -27,7 +27,7 @@ async function upsertBotStatus(client, status = 'online') {
   if (!isConfigured()) return;
   const guilds = [...client.guilds.cache.values()];
   const memberCount = guilds.reduce((sum, guild) => sum + (guild.memberCount || 0), 0);
-  await supabaseRequest('bww_bot_status?on_conflict=id', {
+  await supabaseRequest('bw_bot_status?on_conflict=id', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify({
@@ -55,7 +55,7 @@ async function syncGuilds(client) {
     updated_at: new Date().toISOString()
   }));
   if (!rows.length) return;
-  await supabaseRequest('bww_guilds?on_conflict=guild_id', {
+  await supabaseRequest('bw_guilds?on_conflict=guild_id', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify(rows)
