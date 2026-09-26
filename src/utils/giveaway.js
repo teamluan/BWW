@@ -38,7 +38,7 @@ async function startGiveaway(channel, prize, durationMs, winners) {
   const id = `${Date.now()}_${crypto.randomUUID()}`;
   const g = { id, prize: safePrize, winners: safeWinners, endTime: Date.now() + safeDuration, entries: [], channelId: channel.id, active: true };
   let sent;
-  try { sent = await channel.send({ components: [giveawayContainer(g)], flags: MessageFlags.IsComponentsV2 }); } catch (err) { throw new Error(`Giveaway-Nachricht konnte nicht gesendet werden: ${err.message}`); }
+  try { sent = await channel.send({ components: [giveawayContainer(g)], flags: MessageFlags.IsComponentsV2, allowedMentions: { parse: [] } }); } catch (err) { throw new Error(`Giveaway-Nachricht konnte nicht gesendet werden: ${err.message}`); }
   g.messageId = sent.id;
   const list = loadGiveaways(); list.push(g); saveGiveaways(list); return g;
 }
