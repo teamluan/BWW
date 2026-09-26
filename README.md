@@ -39,7 +39,6 @@ Der Bot benötigt mindestens die Discord-Berechtigungen `View Channels`, `Send M
 - `/panel-send name` → Gespeichertes Panel erneut senden.
 - `/panel-delete name` → Panel + zugehörige Nachrichten löschen.
 - `/panel-list` → Alle Panels listen.
-- `/document-create name titel file:.docx` → Werdegang/Dokument aus .docx erstellen (auto-split 4000/Page).
 - `/setup-status channel` → Status-Embed erstellen.
 - `/wartung aktiv grund?` → Wartungsmodus (🟡) an/aus.
 - `/restart` → Bot neu starten (nur Administrator).
@@ -121,7 +120,7 @@ automatisch neu und löscht die Datei wieder. Lokal: `C:\Users\Steven\Downloads\
 ## Hinweise
 
 - Kein `git` auf dem Server nötig — nur `node`, `npm` und Internet.
-- `.env`, `config/config.json`, `config/giveaways.json`, `config/panels.json`, `config/documents.json`, `.deploy-sha` und `sync.js` selbst werden nie überschrieben (jetzt ohne `sync.js` in `SKIP_FILES` nach `3a06f07` doch überschrieben für Watchdog/Webhook).
+- `.env`, `config/config.json`, `config/giveaways.json`, `config/panels.json`, `.deploy-sha` und `sync.js` selbst werden nie überschrieben (jetzt ohne `sync.js` in `SKIP_FILES` nach `3a06f07` doch überschrieben für Watchdog/Webhook).
   Darum bleiben Tokens und lokale Konfiguration erhalten.
 - Der Stand wird in `.deploy-sha` gespeichert (letzter angewendeter Commit).
 - Nach 5 Fehlern deaktiviert sich das Auto-Update selbst (Logs prüfen).
