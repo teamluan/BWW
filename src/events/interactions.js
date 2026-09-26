@@ -48,7 +48,7 @@ module.exports = async (interaction, client) => {
     if (!panel || !panel.buttons[idx]) return interaction.reply({ content: '❌ Panel oder Button nicht gefunden.', ...EPHEMERAL });
     const button = panel.buttons[idx];
     const container = buttonResponseContainer(name, button);
-    return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
+    return interaction.reply({ components: [container], flags: EPHEMERAL_V2, allowedMentions: { parse: [] } });
   }
   if (interaction.isButton() && interaction.customId.startsWith('bww_giveaway_')) {
     const parts = interaction.customId.split('_'); const action = parts[2]; const id = parts.slice(3).join('_');
