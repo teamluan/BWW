@@ -48,7 +48,7 @@ module.exports = async (interaction, client) => {
     if (!panel || !panel.buttons[idx]) return interaction.reply({ content: '❌ Panel oder Button nicht gefunden.', ...EPHEMERAL });
     const button = panel.buttons[idx];
     const container = buttonResponseContainer(name, button);
-    return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
+    return interaction.reply({ components: [container], flags: EPHEMERAL_V2, allowedMentions: { parse: [] } });
   }
   if (interaction.isButton() && interaction.customId.startsWith('bww_giveaway_')) {
     const parts = interaction.customId.split('_'); const action = parts[2]; const id = parts.slice(3).join('_');
@@ -119,6 +119,7 @@ module.exports = async (interaction, client) => {
     const ok = await updateStatusMessage(client, mode, { reason: grund });
     return interaction.reply({ content: ok ? `${aktiv ? '🟡 Wartung aktiviert' : '🟢 Wartung deaktiviert'}${grund ? ': ' + grund : ''}` : `✅ Modus auf ${mode} gesetzt (kein Status-Channel konfiguriert).`, ...EPHEMERAL });
   }
+  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'panel-create') {
     if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
     const rawName = interaction.options.getString('name', true);
@@ -135,8 +136,9 @@ module.exports = async (interaction, client) => {
     if (!buttons.length) return interaction.reply({ content: '❌ Mindestens ein Button (Label+Text) nötig.', ...EPHEMERAL });
     const panel = { intro: intro || `Panel ${name}`, buttons, messages: [], createdAt: Date.now(), createdBy: interaction.user.id };
     setPanel(name, panel);
-    try { const sent = await interaction.channel.send({ components: [panelContainer(panel, name)], flags: V2 }); addPanelMessage(name, sent.channelId || interaction.channelId, sent.id); return interaction.reply({ content: `✅ Panel \`${name}\` gespeichert und gesendet (${buttons.length} Buttons).`, ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Panel gespeichert, Senden fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
+    try { const sent = await interaction.channel.send({ components: [panelContainer(panel, name)], flags: V2, allowedMentions: { parse: [] } }); addPanelMessage(name, sent.channelId || interaction.channelId, sent.id); return interaction.reply({ content: `✅ Panel \`${name}\` gespeichert und gesendet (${buttons.length} Buttons).`, ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Panel gespeichert, Senden fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
   }
+  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'panel-add-button') {
     if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
     const name = interaction.options.getString('name', true).toLowerCase();
@@ -149,6 +151,7 @@ module.exports = async (interaction, client) => {
     setPanel(name, panel);
     return interaction.reply({ content: `✅ Button \`${label}\` zu Panel \`${name}\` hinzugefügt (${panel.buttons.length} total). Nutze \`/panel-send name:${name}\` zum Aktualisieren.`, ...EPHEMERAL });
   }
+  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'panel-send') {
     if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
     const name = interaction.options.getString('name', true).toLowerCase();
@@ -156,6 +159,7 @@ module.exports = async (interaction, client) => {
     if (!panel) return interaction.reply({ content: `❌ Panel \`${name}\` nicht gefunden.`, ...EPHEMERAL });
     try { const sent = await interaction.channel.send({ components: [panelContainer(panel, name)], flags: V2 }); addPanelMessage(name, sent.channelId || interaction.channelId, sent.id); return interaction.reply({ content: `✅ Panel \`${name}\` gesendet.`, ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Senden fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
   }
+  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'panel-delete') {
     if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
     const name = interaction.options.getString('name', true).toLowerCase();
@@ -174,6 +178,7 @@ module.exports = async (interaction, client) => {
     deletePanel(name);
     return interaction.reply({ content: `✅ Panel \`${name}\` gelöscht (${deletedCount} Nachricht(en) entfernt).`, ...EPHEMERAL });
   }
+  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'panel-list') {
     if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
     const panels = loadPanels();
@@ -226,22 +231,26 @@ module.exports = async (interaction, client) => {
     try { await member.roles.remove(role); } catch { return interaction.reply({ content: '❌ Rolle konnte nicht entfernt werden.', ...EPHEMERAL }); }
     return interaction.reply({ content: `✅ ${member.user.tag} wurde die Rolle ${role} entfernt.`, ...EPHEMERAL });
   }
+  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'nachricht') {
     const text = interaction.options.getString('text', true); const image = interaction.options.getString('bild');
     const container = new ContainerBuilder().setAccentColor(0x2F3136);
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
     if (image) { try { const gallery = new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL(image).setDescription('Bild')); container.addMediaGalleryComponents(gallery); } catch { container.addTextDisplayComponents(new TextDisplayBuilder().setContent(image)); } }
-    try { await interaction.channel.send({ components: [container], flags: V2 }); return interaction.reply({ content: '✅ Embed gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Embed konnte nicht gesendet werden: ${err.message}`, ...EPHEMERAL }); }
+    try { await interaction.channel.send({ components: [container], flags: V2, allowedMentions: { parse: [] } }); return interaction.reply({ content: '✅ Embed gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Embed konnte nicht gesendet werden: ${err.message}`, ...EPHEMERAL }); }
   }
+  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'ticket') {
     try { await interaction.channel.send({ components: [ticketContainer(config)], flags: V2 }); return interaction.reply({ content: '✅ Ticket-Panel gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Ticket-Panel fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
   }
+  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'giveaway') {
     const prize = interaction.options.getString('preis', true); const winners = Math.max(1, interaction.options.getInteger('gewinner') || 1); const durationMs = interaction.options.getInteger('dauer') * 1000 || 60000;
     try { await startGiveaway(interaction.channel, prize, durationMs, winners); return interaction.reply({ content: '✅ Giveaway gestartet!', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Giveaway fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
   }
+  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'verify') {
-    try { config.verify.channelId = interaction.channelId; config.verify.enabled = true; save(config); await interaction.channel.send({ components: [verifyComponents(config)], flags: V2 }); return interaction.reply({ content: '✅ Verify-Panel gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Verify-Panel fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
+    try { config.verify.channelId = interaction.channelId; config.verify.enabled = true; save(config); await interaction.channel.send({ components: [verifyComponents(config)], flags: V2, allowedMentions: { parse: [] } }); return interaction.reply({ content: '✅ Verify-Panel gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Verify-Panel fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
   }
   if (command === 'setup') {
     const container = new ContainerBuilder().setAccentColor(0x2F3136);
