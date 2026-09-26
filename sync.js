@@ -54,17 +54,24 @@ function readManifest() { try { const value = JSON.parse(fs.readFileSync(MANIFES
 function writeManifest(files) { writeLocal('.sync-manifest.json', Buffer.from(JSON.stringify([...new Set(files)].sort(), null, 2))); }
 function writeSha(sha) { try { writeLocal('.deploy-sha', Buffer.from(sha)); } catch (err) { logger.warn(`Auto-Update: SHA-Datei nicht schreibbar: ${err.message}`); } }
 function latestCommitSha() { return gh(`/repos/${OWNER}/${REPO}/commits/${BRANCH}`).then((c) => c.sha); }
-async function fullSync() {
+async function fullSync(backups = new Map()) {
   const sha = await latestCommitSha();
   const tree = await gh(`/repos/${OWNER}/${REPO}/git/trees/${sha}?recursive=1`);
   if (tree.truncated) throw new Error('GitHub Tree ist zu groß/abgeschnitten; Vollsync abgebrochen.');
   const files = (tree.tree || []).filter((e) => e.type === 'blob' && !skipped(e.path) && !e.path.startsWith('.git/')).map(e => e.path);
   const previous = new Set(readManifest());
   const current = new Set(files);
-  for (const file of files) writeLocal(file, await fetchRaw(file, sha));
-  for (const file of previous) if (!current.has(file) && !skipped(file)) removeLocal(file);
-  writeManifest(files);
-  return { sha, count: files.length };
+  for (const file of files) {
+    const target = safeLocalPath(file);
+    if (!backups.has(file)) backups.set(file, fs.existsSync(target) ? fs.readFileSync(target) : null);
+    writeLocal(file, await fetchRaw(file, sha));
+  }
+  for (const file of previous) if (!current.has(file) && !skipped(file)) {
+    const target = safeLocalPath(file);
+    if (!backups.has(file)) backups.set(file, fs.existsSync(target) ? fs.readFileSync(target) : null);
+    removeLocal(file);
+  }
+  return { sha, count: files.length, files };
 }
 async function applyFile(f, ref, touched, needsInstallRef, backups) {
   if (f.filename === 'package.json' || f.filename === 'package-lock.json') needsInstallRef.value = true;
@@ -113,7 +120,7 @@ async function tick() {
     const base = readSha();
 
     if (!base) {
-      const result = await fullSync();
+      const result = await fullSync(backups);
       applied = result.count;
       head = result.sha;
       status.lastResult = 'installed';
@@ -167,6 +174,10 @@ async function tick() {
       if (res.status !== 0) throw new Error(`npm install fehlgeschlagen (Code ${res.status}).`);
     }
 
+    const tree = await gh(`/repos/${OWNER}/${REPO}/git/trees/${head}?recursive=1`);
+    if (tree.truncated) throw new Error('GitHub Tree ist zu groß/abgeschnitten; Manifest wurde nicht aktualisiert.');
+    const managedFiles = (tree.tree || []).filter((e) => e.type === 'blob' && !skipped(e.path) && !e.path.startsWith('.git/')).map(e => e.path);
+    writeManifest(managedFiles);
     writeSha(head);
     status.sha = head;
     status.lastError = null;
