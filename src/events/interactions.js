@@ -176,31 +176,6 @@ module.exports = async (interaction, client) => {
   }
   if (command === 'panel-list') {
     if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-    const channel = interaction.options.getChannel('channel');
-    try { const sent = await channel.send({ components: [werdegangSelectorContainer()], flags: V2 }); config.werdegang = { channelId: channel.id, messageId: sent.id }; save(config); return interaction.reply({ content: `✅ Werdegang-Auswahl in ${channel} erstellt.`, ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
-  }
-  if (command === 'document-send') {
-    if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-    const docName = interaction.options.getString('name', true).toLowerCase();
-    const channel = interaction.options.getChannel('channel');
-    const doc = getDocument(docName);
-    if (!doc) return interaction.reply({ content: `❌ Dokument \`${docName}\` nicht gefunden.`, ...EPHEMERAL });
-    try { const container = documentPageContainer(docName, 0); if (!container) return interaction.reply({ content: '❌ Dokument hat keine Seiten.', ...EPHEMERAL }); await channel.send({ components: [container], flags: V2 }); return interaction.reply({ content: `✅ Dokument \`${docName}\` in ${channel} gesendet (Seite 1/${doc.pages.length}).`, ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Senden fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
-  }
-  if (command === 'document-list') {
-    if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-    const docs = listDocuments(); const ids = Object.keys(docs); if (!ids.length) return interaction.reply({ content: '📭 Keine Dokumente.', ...EPHEMERAL });
-    const container = new ContainerBuilder().setAccentColor(0x2F3136);
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## Dokumente (${ids.length})\n${ids.map(id => `• \`${id}\` – ${docs[id].title} – ${docs[id].pages.length} Seiten`).join('\n')}`));
-    return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
-  }
-  if (command === 'document-delete') {
-    if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-    const name = interaction.options.getString('name', true).toLowerCase();
-    if (!deleteDocument(name)) return interaction.reply({ content: `❌ Dokument \`${name}\` nicht gefunden.`, ...EPHEMERAL });
-    return interaction.reply({ content: `✅ Dokument \`${name}\` gelöscht.`, ...EPHEMERAL });
-  }
-  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'kick') {
     const member = interaction.options.getMember('user'); const reason = interaction.options.getString('grund') || 'Kein Grund angegeben';
     if (!member) return interaction.reply({ content: '❌ Mitglied nicht gefunden.', ...EPHEMERAL });
