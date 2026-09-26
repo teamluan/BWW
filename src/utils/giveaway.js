@@ -35,7 +35,7 @@ async function startGiveaway(channel, prize, durationMs, winners) {
   const safeDuration = Math.max(5000, Number(durationMs) || 60000);
   const safeWinners = Math.max(1, Number(winners) || 1);
   const safePrize = String(prize).slice(0, 256).trim() || 'Preis';
-  const id = `${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+  const id = `${Date.now()}_${crypto.randomUUID()}`;
   const g = { id, prize: safePrize, winners: safeWinners, endTime: Date.now() + safeDuration, entries: [], channelId: channel.id, active: true };
   let sent;
   try { sent = await channel.send({ components: [giveawayContainer(g)], flags: MessageFlags.IsComponentsV2 }); } catch (err) { throw new Error(`Giveaway-Nachricht konnte nicht gesendet werden: ${err.message}`); }
