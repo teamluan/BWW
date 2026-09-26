@@ -6,8 +6,7 @@
   "scripts": {
     "start": "node sync.js",
     "bot": "node src/index.js",
-    "encrypt:webhook": "node scripts/encrypt-webhook.js",
-    "decrypt:webhook": "node scripts/encrypt-webhook.js --decrypt"
+    "check": "node scripts/check.js"
   },
   "dependencies": {
     "discord.js": "^14.25.0",
