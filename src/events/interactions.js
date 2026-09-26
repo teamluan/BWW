@@ -136,7 +136,7 @@ module.exports = async (interaction, client) => {
     if (!buttons.length) return interaction.reply({ content: '❌ Mindestens ein Button (Label+Text) nötig.', ...EPHEMERAL });
     const panel = { intro: intro || `Panel ${name}`, buttons, messages: [], createdAt: Date.now(), createdBy: interaction.user.id };
     setPanel(name, panel);
-    try { const sent = await interaction.channel.send({ components: [panelContainer(panel, name)], flags: V2 }); addPanelMessage(name, sent.channelId || interaction.channelId, sent.id); return interaction.reply({ content: `✅ Panel \`${name}\` gespeichert und gesendet (${buttons.length} Buttons).`, ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Panel gespeichert, Senden fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
+    try { const sent = await interaction.channel.send({ components: [panelContainer(panel, name)], flags: V2, allowedMentions: { parse: [] } }); addPanelMessage(name, sent.channelId || interaction.channelId, sent.id); return interaction.reply({ content: `✅ Panel \`${name}\` gespeichert und gesendet (${buttons.length} Buttons).`, ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Panel gespeichert, Senden fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
   }
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'panel-add-button') {
@@ -237,7 +237,7 @@ module.exports = async (interaction, client) => {
     const container = new ContainerBuilder().setAccentColor(0x2F3136);
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
     if (image) { try { const gallery = new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL(image).setDescription('Bild')); container.addMediaGalleryComponents(gallery); } catch { container.addTextDisplayComponents(new TextDisplayBuilder().setContent(image)); } }
-    try { await interaction.channel.send({ components: [container], flags: V2 }); return interaction.reply({ content: '✅ Embed gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Embed konnte nicht gesendet werden: ${err.message}`, ...EPHEMERAL }); }
+    try { await interaction.channel.send({ components: [container], flags: V2, allowedMentions: { parse: [] } }); return interaction.reply({ content: '✅ Embed gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Embed konnte nicht gesendet werden: ${err.message}`, ...EPHEMERAL }); }
   }
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'ticket') {
@@ -250,7 +250,7 @@ module.exports = async (interaction, client) => {
   }
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'verify') {
-    try { config.verify.channelId = interaction.channelId; config.verify.enabled = true; save(config); await interaction.channel.send({ components: [verifyComponents(config)], flags: V2 }); return interaction.reply({ content: '✅ Verify-Panel gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Verify-Panel fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
+    try { config.verify.channelId = interaction.channelId; config.verify.enabled = true; save(config); await interaction.channel.send({ components: [verifyComponents(config)], flags: V2, allowedMentions: { parse: [] } }); return interaction.reply({ content: '✅ Verify-Panel gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Verify-Panel fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
   }
   if (command === 'setup') {
     const container = new ContainerBuilder().setAccentColor(0x2F3136);
