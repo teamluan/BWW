@@ -10,7 +10,9 @@ function loadPanels() {
 function savePanels(panels) {
   const dir = path.dirname(file);
   if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
-  fs.writeFileSync(file, JSON.stringify(panels, null, 2));
+  const tmp = `${file}.${process.pid}.${Date.now()}.tmp`;
+  fs.writeFileSync(tmp, JSON.stringify(panels, null, 2));
+  fs.renameSync(tmp, file);
   return panels;
 }
 function getPanel(name) {
