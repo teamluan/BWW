@@ -52,7 +52,7 @@ function writeLocal(file, buf) {
   fs.writeFileSync(tmp, buf);
   try { fs.renameSync(tmp, target); } catch (err) { try { fs.rmSync(tmp, { force: true }); } catch (_) {} throw err; }
 }
-function removeLocal(file) { try { fs.unlinkSync(path.join(ROOT, file)); } catch (_) {} }
+function removeLocal(file) { try { fs.unlinkSync(safeLocalPath(file)); } catch (_) {} }
 function readSha() { try { return fs.readFileSync(SHA_FILE, 'utf8').trim(); } catch (_) { return ''; } }
 function readManifest() { try { const value = JSON.parse(fs.readFileSync(MANIFEST_FILE, 'utf8')); return Array.isArray(value) ? value : []; } catch (_) { return []; } }
 function writeManifest(files) { writeLocal('.sync-manifest.json', Buffer.from(JSON.stringify([...new Set(files)].sort(), null, 2))); }
@@ -133,8 +133,21 @@ async function tick() {
       status.sha = head;
       logger.info(`Auto-Update: Erstinstallation mit ${applied} Dateien (Commit ${head.slice(0, 7)}).`);
     } else {
-      let cmp = await gh(`/repos/${OWNER}/${REPO}/compare/${base}...${BRANCH}`);
-      head = cmp?.head?.sha || await latestCommitSha();
+      let cmp;
+      try {
+        cmp = await gh(`/repos/${OWNER}/${REPO}/compare/${base}...${BRANCH}`);
+      } catch (err) {
+        if (err?.status !== 404) throw err;
+        logger.warn('Auto-Update: gespeicherter SHA ist nicht mehr vergleichbar – führe sicheren Vollsync durch.');
+        const result = await fullSync(backups);
+        applied = result.count;
+        head = result.sha;
+        cmp = null;
+      }
+      if (!cmp) {
+        // Vollsync wurde bereits ausgeführt; die endgültige Manifest-/SHA-Prüfung folgt unten.
+      } else {
+        head = cmp?.head?.sha || await latestCommitSha();
 
       if (cmp?.files?.length >= 300 || cmp?.truncated) {
         logger.warn('Auto-Update: GitHub Compare ist möglicherweise abgeschnitten – führe sicheren Vollsync durch.');
@@ -166,7 +179,7 @@ async function tick() {
       }
     }
 
-    const confirmedHead = await latestCommitSha();
+ = await latestCommitSha();
     if (confirmedHead !== head) {
       throw new Error(`Remote-Branch hat sich während des Syncs geändert (${head.slice(0, 7)} → ${confirmedHead.slice(0, 7)}). Änderungen wurden verworfen.`);
     }
