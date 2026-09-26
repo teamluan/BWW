@@ -1,6 +1,6 @@
 # BWW Discord Bot
 
-Discord.js-Bot ohne Website und ohne Datenbank. Die Konfiguration wird lokal in `config/config.json` (plus `config/giveaways.json`, `config/panels.json`, `config/documents.json`) gespeichert.
+Discord.js-Bot ohne Website und ohne Datenbank. Die Konfiguration wird lokal in `config/config.json` (plus `config/giveaways.json`, `config/panels.json`) gespeichert.
 
 ## Funktionen
 - `/nachricht text bild` sendet einen Container (Components V2) in den aktuellen Channel.
@@ -8,7 +8,6 @@ Discord.js-Bot ohne Website und ohne Datenbank. Die Konfiguration wird lokal in 
 - Verify-System mit Button und frei wählbarer Verifizierungsrolle.
 - Ticket-System mit Kategorie + Rolle, Select-Menü + Close-Button.
 - **Custom Panels**: Bis zu 50 Buttons pro Panel, Components V2, speichern+senden, `panel-add-button` für unbegrenzt.
-- **Dokumente/Werdegaenge**: Mehrere `.docx` Dokumente (z.B. `Bundeswehr Werdegang.docx` 25k → 7 Seiten), Auswahl-Embed `📚 Werdegang` mit Buttons/Select, paginierte V2 Container.
 - **Status-Embed**: `🟢 Online`/`🔴 Offline`/`🟡 Wartung` in festem Channel (`/setup-status`, `/wartung`).
 - Giveaway-System mit Teilnehmen/Verlassen, vorzeitigem Beenden und Reroll per Button.
 - Moderations-Commands: `/kick`, `/ban`, `/unban`, `/timeout`, `/giverole`, `/removerole`.
@@ -30,11 +29,9 @@ Der Bot benötigt mindestens die Discord-Berechtigungen `View Channels`, `Send M
 - `/setup-status` → Channel für Status-Embed (🟢/🔴/🟡).
 - `/setup-permission` → Rolle für einen Command erlauben/entfernen.
 - `/verify` → konfiguriertes Verify-Panel senden.
-- `/werdegang-setup` → Channel für Werdegang-Auswahl Embed.
 
 ## Commands
 - `/nachricht text bild?` → Container senden (V2, mit MediaGallery für Bild).
-- `/nachrichtauswahl text?` → Dokumenten-Auswahl-Panel (Buttons) mit optionalem Einleitungstext.
 - `/ticket` → Ticket-Panel senden.
 - `/giveaway preis dauer gewinner?` → Giveaway starten (Dauer in Sekunden).
 - `/panel-create name intro button1_label button1_text ... (bis 10)` → Custom Panel speichern+senden (Components V2).
@@ -43,8 +40,6 @@ Der Bot benötigt mindestens die Discord-Berechtigungen `View Channels`, `Send M
 - `/panel-delete name` → Panel + zugehörige Nachrichten löschen.
 - `/panel-list` → Alle Panels listen.
 - `/document-create name titel file:.docx` → Werdegang/Dokument aus .docx erstellen (auto-split 4000/Page).
-- `/werdegang-setup channel` → Auswahl-Embed für alle Werdegaenge senden.
-- `/document-list` / `/document-delete name` → Dokumente verwalten.
 - `/setup-status channel` → Status-Embed erstellen.
 - `/wartung aktiv grund?` → Wartungsmodus (🟡) an/aus.
 - `/restart` → Bot neu starten (nur Administrator).
@@ -61,9 +56,8 @@ Der Bot benötigt mindestens die Discord-Berechtigungen `View Channels`, `Send M
 - Nach dem Ende erscheint **🔁 Neu ziehen** für einen neuen Gewinner.
 - Beenden/Reroll sind nur für Administratoren oder Rollen mit `giveaway`-Berechtigung möglich.
 
-## Panels & Dokumente
-- **Panels**: `panel-create` speichert `intro` + bis zu 10 Buttons direkt, `panel-add-button` erweitert auf 50 (5×5, danach Select). `panel-delete` löscht auch alle gesendeten Nachrichten (max 20 pro Panel).
-- **Werdegang**: `Bundeswehr Werdegang.docx` (25k → 7 Seiten à 4000) via `document-create`, Auswahl-Embed `📚` mit Buttons `bww_doc_select_<id>` → ephemeral Seite `1/7` + Nav `◀`/`▶`/`📚 Auswahl`.
+## Panels
+- **Panels**: `panel-create` speichert `intro` + bis zu 10 Buttons direkt, `panel-add-button` erweitert auf 50. `panel-delete` entfernt gespeicherte Panels und zugehörige Nachrichten.
 
 ## Status
 - **🟢 Online** `0x57F287`, **🔴 Offline** `0xED4245`, **🟡 Wartung** `0xFEE75C` – `Container` V2 mit `Letztes Update: <t:...:R>` + `Uptime`.
@@ -75,7 +69,6 @@ Neue Commands (z. B. `/kick`, `/panel-create`) sind standardmäßig nur für Adm
 ```
 /setup-permission command:kick role:@Moderator erlauben:true
 /setup-permission command:panel-create role:@Moderator erlauben:true
-/setup-permission command:document-create role:@Moderator erlauben:true
 ```
 
 ---
