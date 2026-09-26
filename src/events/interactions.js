@@ -51,31 +51,6 @@ module.exports = async (interaction, client) => {
     const container = buttonResponseContainer(name, button);
     return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
   }
-  if (interaction.isButton() && interaction.customId.startsWith('bww_doc_select_')) {
-    const docId = interaction.customId.replace('bww_doc_select_', '');
-    const container = documentPageContainer(docId, 0);
-    if (!container) return interaction.reply({ content: '❌ Dokument nicht gefunden.', ...EPHEMERAL });
-    return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
-  }
-  if (interaction.isButton() && interaction.customId.startsWith('bww_doc_page_')) {
-    const rest = interaction.customId.replace('bww_doc_page_', '');
-    const lastUnd = rest.lastIndexOf('_');
-    const docId = rest.slice(0, lastUnd);
-    const page = parseInt(rest.slice(lastUnd + 1), 10);
-    const container = documentPageContainer(docId, page);
-    if (!container) return interaction.reply({ content: '❌ Seite nicht gefunden.', ...EPHEMERAL });
-    return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
-  }
-  if (interaction.isButton() && interaction.customId === 'bww_doc_select_back') {
-    const container = werdegangSelectorContainer();
-    return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
-  }
-  if (interaction.isStringSelectMenu() && interaction.customId === 'bww_doc_select_menu') {
-    const docId = interaction.values[0];
-    const container = documentPageContainer(docId, 0);
-    if (!container) return interaction.reply({ content: '❌ Dokument nicht gefunden.', ...EPHEMERAL });
-    return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
-  }
   if (interaction.isButton() && interaction.customId.startsWith('bww_giveaway_')) {
     const parts = interaction.customId.split('_'); const action = parts[2]; const id = parts.slice(3).join('_');
     if (!['join', 'leave', 'end', 'reroll'].includes(action)) return;
@@ -105,14 +80,6 @@ module.exports = async (interaction, client) => {
         return interaction.reply({ content: `🔁 Neu gezogen: ${winText}`, ...EPHEMERAL });
       }
     }
-  }
-  if (interaction.isButton() && interaction.customId.startsWith('bww_doc_')) {
-    const value = interaction.customId.replace('bww_doc_', '');
-    const doc = documentForValue(value);
-    if (!doc) return interaction.reply({ content: '❌ Dokument nicht gefunden.', ...EPHEMERAL });
-    const container = new ContainerBuilder().setAccentColor(0x2F3136);
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(doc.text));
-    return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
   }
   if (interaction.isStringSelectMenu() && interaction.customId === 'bww_ticket_select') {
     const reason = TICKET_REASONS.find(r => r.value === interaction.values[0]);
@@ -217,8 +184,7 @@ module.exports = async (interaction, client) => {
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## Gespeicherte Panels (${names.length})\n${names.map(n => `• \`${n}\` – ${panels[n].buttons.length} Buttons – ${(panels[n].intro || '').slice(0, 80)}`).join('\n')}`));
     return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
   }
-  if (command === 'document-create') {
-    if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
+  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
     const name = interaction.options.getString('name', true).toLowerCase().replace(/[^a-z0-9-_]/g, '').slice(0, 32);
     const titel = interaction.options.getString('titel', true);
     const file = interaction.options.getAttachment('file');
@@ -310,10 +276,6 @@ module.exports = async (interaction, client) => {
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
     if (image) { try { const gallery = new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL(image).setDescription('Bild')); container.addMediaGalleryComponents(gallery); } catch { container.addTextDisplayComponents(new TextDisplayBuilder().setContent(image)); } }
     try { await interaction.channel.send({ components: [container], flags: V2 }); return interaction.reply({ content: '✅ Embed gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Embed konnte nicht gesendet werden: ${err.message}`, ...EPHEMERAL }); }
-  }
-  if (command === 'nachrichtauswahl') {
-    const intro = interaction.options.getString('text') || undefined;
-    try { await interaction.channel.send({ components: [documentContainer(intro)], flags: V2 }); return interaction.reply({ content: '✅ Dokumenten-Auswahl gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Konnte nicht gesendet werden: ${err.message}`, ...EPHEMERAL }); }
   }
   if (command === 'ticket') {
     try { await interaction.channel.send({ components: [ticketContainer(config)], flags: V2 }); return interaction.reply({ content: '✅ Ticket-Panel gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Ticket-Panel fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
