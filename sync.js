@@ -100,9 +100,106 @@ function rollback(backups) {
 let busy = false; let errorCount = 0; let intervalHandle = null; let botProcess = null; let initializing = false; let restartDelay = 500; let stopping = false;
 const status = { enabled: false, checks: 0, lastCheckAt: null, lastResult: null, lastCount: 0, lastFiles: [], lastError: null, sha: readSha() || null };
 function statusSnapshot() { return { ...status }; }
-async function tick() { if (busy) return; busy = true; status.checks += 1; const backups = new Map(); status.lastCheckAt = new Date().toISOString(); try { let applied = 0; let needsInstall = false; let head = ''; const base = readSha(); if (!base) { const r = await fullSync(); applied = r.count; head = r.sha; status.lastResult = 'installed'; status.lastCount = applied; status.lastFiles = [`Erstinstallation: ${applied} Dateien`]; status.sha = head; logger.info(`Auto-Update: Erstinstallation mit ${applied} Dateien (Commit ${head.slice(0, 7)}).`); } else { let cmp = null; try { cmp = await gh(`/repos/${OWNER}/${REPO}/compare/${base}...${BRANCH}`); } catch (err) { if (!/404/.test(String(err.message))) throw err; const r = await fullSync(); applied = r.count; head = r.sha; status.lastResult = 'installed'; status.lastCount = applied; status.lastFiles = [`Erstinstallation: ${applied} Dateien`]; status.sha = head; logger.info(`Auto-Update: Basis unbekannt, Erstinstallation mit ${applied} Dateien (Commit ${head.slice(0, 7)}).`); } if (cmp) { if (!cmp.files || !cmp.files.length) { errorCount = 0; status.lastResult = 'up-to-date'; status.lastCount = 0; status.lastFiles = []; status.lastError = null; status.sha = base; return; } const touched = []; const installRef = { value: false }; for (const f of cmp.files) { if (skipped(f.filename)) continue; await applyFile(f, touched, installRef, backups); } applied = touched.length; needsInstall = installRef.value; head = await latestCommitSha(); if (!applied) { writeSha(head); status.lastResult = 'up-to-date'; status.lastCount = 0; status.lastFiles = []; status.lastError = null; status.sha = head; return; } logger.info(`Auto-Update: ${applied} Datei(en) aktualisiert (${touched.join(', ')}, Commit ${head.slice(0, 7)}).`); status.lastResult = 'updated'; status.lastCount = applied; status.lastFiles = touched; status.sha = head; } } writeSha(head); errorCount = 0; if (needsInstall) { logger.info('Auto-Update: package.json geändert – installiere Abhängigkeiten neu…'); const res = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', '--omit=dev', '--no-audit', '--no-fund'], { cwd: ROOT, stdio: 'inherit' }); if (res.status !== 0) logger.warn(`Auto-Update: npm install beendet mit Code ${res.status}.`); } logger.info('Auto-Update: Starte neu, um die neue Version zu laden…'); if (initializing) return; stopBot(); setTimeout(() => process.exit(0), 500).unref(); } catch (err) { try { rollback(backups); } catch (rollbackErr) { logger.error(`Auto-Update Rollback fehlgeschlagen: ${rollbackErr.message}`); } errorCount += 1; status.lastResult = 'error'; status.lastError = err.message; logger.error(`Auto-Update fehlgeschlagen (${errorCount}): ${err.stack || err.message}`); if (errorCount >= 5) { logger.error('Auto-Update nach 5 Fehlern deaktiviert – bitte Logs prüfen.'); if (intervalHandle) clearInterval(intervalHandle); } } finally { busy = false; } }
+async function tick() {
+  if (busy) return;
+  busy = true;
+  status.checks += 1;
+  status.lastCheckAt = new Date().toISOString();
+  const backups = new Map();
+  try {
+    let applied = 0;
+    let needsInstall = false;
+    let head = '';
+    const base = readSha();
+
+    if (!base) {
+      const result = await fullSync();
+      applied = result.count;
+      head = result.sha;
+      status.lastResult = 'installed';
+      status.lastCount = applied;
+      status.lastFiles = [`Erstinstallation: ${applied} Dateien`];
+      status.sha = head;
+      logger.info(`Auto-Update: Erstinstallation mit ${applied} Dateien (Commit ${head.slice(0, 7)}).`);
+    } else {
+      let cmp = await gh(`/repos/${OWNER}/${REPO}/compare/${base}...${BRANCH}`);
+      head = cmp?.head?.sha || await latestCommitSha();
+
+      if (cmp?.files?.length >= 300 || cmp?.truncated) {
+        logger.warn('Auto-Update: GitHub Compare ist möglicherweise abgeschnitten – führe sicheren Vollsync durch.');
+        const result = await fullSync();
+        applied = result.count;
+        head = result.sha;
+      } else if (!cmp.files || cmp.files.length === 0) {
+        errorCount = 0;
+        status.lastResult = 'up-to-date';
+        status.lastCount = 0;
+        status.lastFiles = [];
+        status.lastError = null;
+        status.sha = head || base;
+        return;
+      } else {
+        const touched = [];
+        const installRef = { value: false };
+        for (const f of cmp.files) {
+          if (skipped(f.filename)) continue;
+          await applyFile(f, head, touched, installRef, backups);
+        }
+        applied = touched.length;
+        needsInstall = installRef.value;
+        if (applied) {
+          status.lastResult = 'updated';
+          status.lastCount = applied;
+          status.lastFiles = touched;
+        }
+      }
+    }
+
+    const confirmedHead = await latestCommitSha();
+    if (confirmedHead !== head) {
+      throw new Error(`Remote-Branch hat sich während des Syncs geändert (${head.slice(0, 7)} → ${confirmedHead.slice(0, 7)}). Änderungen wurden verworfen.`);
+    }
+
+    if (needsInstall) {
+      logger.info('Auto-Update: package.json/package-lock.json geändert – installiere Abhängigkeiten neu…');
+      const res = spawnSync(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['install', '--omit=dev', '--no-audit', '--no-fund'], { cwd: ROOT, stdio: 'inherit' });
+      if (res.error) throw new Error(`npm install konnte nicht gestartet werden: ${res.error.message}`);
+      if (res.status !== 0) throw new Error(`npm install fehlgeschlagen (Code ${res.status}).`);
+    }
+
+    writeSha(head);
+    status.sha = head;
+    status.lastError = null;
+    errorCount = 0;
+
+    if (applied > 0) {
+      logger.info(`Auto-Update: ${applied} Datei(en) aktualisiert (Commit ${head.slice(0, 7)}).`);
+      if (initializing) return;
+      logger.info('Auto-Update: Starte neu, um die neue Version zu laden…');
+      stopBot();
+      setTimeout(() => process.exit(0), 1000).unref();
+    } else {
+      status.lastResult = 'up-to-date';
+      status.lastCount = 0;
+      status.lastFiles = [];
+    }
+  } catch (err) {
+    try { rollback(backups); } catch (rollbackErr) { logger.error(`Auto-Update Rollback fehlgeschlagen: ${rollbackErr.message}`); }
+    errorCount += 1;
+    status.lastResult = 'error';
+    status.lastError = err.message;
+    logger.error(`Auto-Update fehlgeschlagen (${errorCount}): ${err.stack || err.message}`);
+    if (errorCount >= 5) {
+      logger.error('Auto-Update nach 5 Fehlern deaktiviert – bitte Logs prüfen.');
+      if (intervalHandle) clearInterval(intervalHandle);
+    }
+  } finally {
+    busy = false;
+  }
+}
+
 function stopBot() { if (botProcess && !botProcess.killed) { stopping = true; logger.info('Stoppe Bot...'); botProcess.kill('SIGTERM'); botProcess = null; } }
-function startBot() { logger.info('Starte Bot (node src/index.js)...'); if (WEBHOOK_URL) logger.info(`Log-Webhook aktiv (Level: ${WEBHOOK_LEVEL})`); stopping = false; botProcess = spawn('node', ['src/index.js'], { cwd: ROOT, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] }); const forward = (stream) => { if (!stream) return; stream.on('data', (buf) => { const text = buf.toString(); const chunk = text.endsWith('\n') ? text : text + '\n'; writeToFile(chunk); if (WEBHOOK_URL) { const level = text.includes('[ERROR]') || text.toLowerCase().includes('error') ? 'ERROR' : text.includes('[WARN]') ? 'WARN' : 'INFO'; notifyWebhook(level, text.trim()); } }); }; forward(botProcess.stdout); forward(botProcess.stderr); botProcess.on('exit', (code, signal) => { logger.info(`Bot-Prozess beendet (code=${code}, signal=${signal})`); botProcess = null; if (!stopping && process.exitCode !== 0) { logger.warn(`Bot unerwartet beendet – starte in ${Math.round(restartDelay / 1000)}s neu…`); const delay = restartDelay; restartDelay = Math.min(restartDelay * 2, 60000); setTimeout(() => { if (!stopping) startBot(); }, delay); } }); botProcess.on('error', (err) => { logger.error('Bot-Fehler:', err.message); }); }
+function startBot() { logger.info('Starte Bot (node src/index.js)...'); if (WEBHOOK_URL) logger.info(`Log-Webhook aktiv (Level: ${WEBHOOK_LEVEL})`); stopping = false; botProcess = spawn(process.execPath, ['src/index.js'], { cwd: ROOT, env: process.env, stdio: ['ignore', 'pipe', 'pipe'] }); const forward = (stream) => { if (!stream) return; stream.on('data', (buf) => { const text = buf.toString(); const chunk = text.endsWith('\n') ? text : text + '\n'; writeToFile(chunk); if (WEBHOOK_URL) { const level = text.includes('[ERROR]') || text.toLowerCase().includes('error') ? 'ERROR' : text.includes('[WARN]') ? 'WARN' : 'INFO'; notifyWebhook(level, text.trim()); } }); }; forward(botProcess.stdout); forward(botProcess.stderr); botProcess.on('exit', (code, signal) => { logger.info(`Bot-Prozess beendet (code=${code}, signal=${signal})`); botProcess = null; if (!stopping && process.exitCode !== 0) { logger.warn(`Bot unerwartet beendet – starte in ${Math.round(restartDelay / 1000)}s neu…`); const delay = restartDelay; restartDelay = Math.min(restartDelay * 2, 60000); setTimeout(() => { if (!stopping) startBot(); }, delay); } }); botProcess.on('error', (err) => { logger.error('Bot-Fehler:', err.message); }); }
 async function start() { try { if (ENABLED) { status.enabled = true; logger.info(`Auto-Update aktiv – prüfe alle ${INTERVAL_S} Sekunden auf neue Commits.`); if (!readSha()) { initializing = true; logger.info('Nichts installiert – starte Erstinstallation...'); await tick(); initializing = false; } } else { logger.info('Auto-Update deaktiviert (AUTO_UPDATE != true).'); } } catch (err) { logger.error('Initialer Auto-Update-Schritt fehlgeschlagen:', err && err.message ? err.message : err); } startBot(); if (ENABLED) { intervalHandle = setInterval(() => tick().catch(() => {}), INTERVAL_MS); } const RESTART_FILE = path.join(ROOT, 'restart.requested'); setInterval(() => { try { if (fs.existsSync(RESTART_FILE)) { try { fs.unlinkSync(RESTART_FILE); } catch (_) {} logger.info('Neustart via restart.requested angefordert – starte neu…'); notifyWebhook('INFO', 'Neustart via restart.requested'); stopBot(); setTimeout(() => process.exit(0), 500).unref(); } } catch (_) {} }, 2000); }
-start();
+if (require.main === module) start();
 module.exports = { tick, status: statusSnapshot };
