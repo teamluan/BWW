@@ -1,11 +1,19 @@
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, ActionRowBuilder, ButtonBuilder, ButtonStyle, MessageFlags } = require('discord.js');
 
 const file = path.join(__dirname, '..', '..', 'config', 'giveaways.json');
 
 function loadGiveaways() { try { return JSON.parse(fs.readFileSync(file, 'utf8')); } catch { return []; } }
-function saveGiveaways(list) { const dir = path.dirname(file); if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true }); fs.writeFileSync(file, JSON.stringify(list, null, 2)); return list; }
+function saveGiveaways(list) {
+  const dir = path.dirname(file);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const tmp = file + '.tmp';
+  fs.writeFileSync(tmp, JSON.stringify(list, null, 2));
+  fs.renameSync(tmp, file);
+  return list;
+}
 
 function giveawayContainer(g) {
   const container = new ContainerBuilder().setAccentColor(g.active ? 0x2F3136 : 0x5865F2);
@@ -35,7 +43,16 @@ async function startGiveaway(channel, prize, durationMs, winners) {
   const list = loadGiveaways(); list.push(g); saveGiveaways(list); return g;
 }
 
-function drawWinners(g) { const pool = [...new Set(g.entries)]; const drawn = []; const copy = [...pool]; while (copy.length && drawn.length < g.winners) { const idx = Math.floor(Math.random() * copy.length); drawn.push(copy.splice(idx, 1)[0]); } return drawn; }
+function drawWinners(g, excluded = []) {
+  const blocked = new Set(excluded);
+  const pool = [...new Set(g.entries)].filter(id => !blocked.has(id));
+  const drawn = [];
+  while (pool.length && drawn.length < g.winners) {
+    const idx = crypto.randomInt(pool.length);
+    drawn.push(pool.splice(idx, 1)[0]);
+  }
+  return drawn;
+}
 
 async function updateGiveawayMessage(client, g) {
   try {
@@ -71,7 +88,7 @@ async function rerollGiveaway(client, id) {
   const list = loadGiveaways();
   const g = list.find(x => x.id === id && !x.active);
   if (!g) return { ok: false, error: 'Giveaway nicht gefunden oder noch aktiv.' };
-  const winners = drawWinners(g);
+  const winners = drawWinners(g, g.winnersDrawn || []);
   g.winnersDrawn = winners;
   const container = new ContainerBuilder().setAccentColor(0x5865F2);
   container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## 🔁 Giveaway Reroll\n**Preis:** ${g.prize}\n**Neue Gewinner:** ${winners.length ? winners.map(uid => `<@${uid}>`).join(', ') : 'Keine Teilnehmer übrig 😔'}`));
