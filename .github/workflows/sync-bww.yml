@@ -27,7 +27,7 @@ jobs:
 
           echo "Dispatching mirror workflow for commit ${SOURCE_SHA}..."
 
-          PAYLOAD='{"ref":"main","inputs":{"source_sha":"${SOURCE_SHA}"}}'
+          PAYLOAD="{\"ref\":\"main\",\"inputs\":{\"source_sha\":\"${SOURCE_SHA}\"}}"
           HTTP_STATUS="$(curl -sS -o /tmp/dispatch-response -w "%{http_code}" -X POST \
             -H "Accept: application/vnd.github+json" \
             -H "Authorization: Bearer ${SYNC_TOKEN}" \
