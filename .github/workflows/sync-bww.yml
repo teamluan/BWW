@@ -32,40 +32,28 @@ jobs:
           # Authenticate Git directly with the Classic PAT.
           git remote add mirror "https://x-access-token:${MIRROR_TOKEN}@github.com/Teufel2211/bww.git"
 
-          echo "Fetching current target refs..."
-          git fetch mirror --prune '+refs/heads/*:refs/remotes/mirror/*' '+refs/tags/*:refs/tags/*'
-
-          echo "Comparing source and target refs..."
-
-          SOURCE_REFS="$(git for-each-ref --format='%(refname) %(objectname)' refs/heads refs/tags | sort)"
-          TARGET_REFS="$(git for-each-ref --format='%(refname:strip=3) %(objectname)' refs/remotes/mirror refs/tags | sort)"
-
-          # Normalize target branch refs to refs/heads/* so the comparison is exact.
-          TARGET_REFS="$(git for-each-ref --format='%(refname:strip=3) %(objectname)' refs/remotes/mirror | sed 's#^#refs/heads/#'; git for-each-ref --format='%(refname) %(objectname)' refs/tags | sort | uniq)";
-
+          echo "Reading current target refs..."
           SOURCE_HEADS="$(git for-each-ref --format='%(refname) %(objectname)' refs/heads | sort)"
-          TARGET_HEADS="$(git for-each-ref --format='refs/heads/%(refname:strip=3) %(objectname)' refs/remotes/mirror | sort)"
+          TARGET_HEADS="$(git ls-remote --heads mirror | awk '{print $2" "$1}' | sort)"
           SOURCE_TAGS="$(git for-each-ref --format='%(refname) %(objectname)' refs/tags | sort)"
-          TARGET_TAGS="$(git for-each-ref --format='%(refname) %(objectname)' refs/tags | sort)"
+          TARGET_TAGS="$(git ls-remote --tags mirror | awk '$2 !~ /\\^\\{\\}$/ {print $2" "$1}' | sort)"
+
+          echo "Checking whether source and target are already synchronized..."
 
           if [ "${SOURCE_HEADS}" = "${TARGET_HEADS}" ] && [ "${SOURCE_TAGS}" = "${TARGET_TAGS}" ]; then
             echo "Already synchronized. No push required."
             exit 0
           fi
 
-          echo "Differences detected. Pushing full mirror..."
+          echo "Differences detected. Performing full mirror push..."
           git push mirror --mirror --force
 
           echo "Verifying target refs after synchronization..."
-          git fetch mirror --prune '+refs/heads/*:refs/remotes/mirror/*' '+refs/tags/*:refs/tags/*'
+          TARGET_HEADS_AFTER="$(git ls-remote --heads mirror | awk '{print $2" "$1}' | sort)"
+          TARGET_TAGS_AFTER="$(git ls-remote --tags mirror | awk '$2 !~ /\\^\\{\\}$/ {print $2" "$1}' | sort)"
 
-          SOURCE_HEADS_AFTER="$(git for-each-ref --format='%(refname) %(objectname)' refs/heads | sort)"
-          TARGET_HEADS_AFTER="$(git for-each-ref --format='refs/heads/%(refname:strip=3) %(objectname)' refs/remotes/mirror | sort)"
-          SOURCE_TAGS_AFTER="$(git for-each-ref --format='%(refname) %(objectname)' refs/tags | sort)"
-          TARGET_TAGS_AFTER="$(git for-each-ref --format='%(refname) %(objectname)' refs/tags | sort)"
-
-          if [ "${SOURCE_HEADS_AFTER}" != "${TARGET_HEADS_AFTER}" ] || [ "${SOURCE_TAGS_AFTER}" != "${TARGET_TAGS_AFTER}" ]; then
-            echo "::error::Mirror verification failed: source and target refs differ."
+          if [ "${SOURCE_HEADS}" != "${TARGET_HEADS_AFTER}" ] || [ "${SOURCE_TAGS}" != "${TARGET_TAGS_AFTER}" ]; then
+            echo "::error::Mirror verification failed: source and target refs differ after push."
             exit 1
           fi
 
