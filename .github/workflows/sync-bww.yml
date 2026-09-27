@@ -66,5 +66,5 @@ jobs:
         run: |
           set -euo pipefail
 
-          git remote add mirror "https://x-access-token:${SYNC_TOKEN}@github.com/Teufel2211/bww.git"
+          git remote add mirror "https://Teufel2211:${SYNC_TOKEN}@github.com/Teufel2211/bww.git"
           git push mirror HEAD:main --force
