@@ -18,7 +18,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Verify mirror access
+      - name: Push main to mirror repository
         env:
           SYNC_TOKEN: ${{ secrets.BWW_SYNC_TOKEN }}
         run: |
@@ -29,97 +29,12 @@ jobs:
             exit 1
           fi
 
-          echo "Testing authenticated access to Teufel2211/bww..."
+          git remote add mirror "https://x-access-token:${SYNC_TOKEN}@github.com/Teufel2211/bww.git"
 
-          api_status="$(curl -sS -o /tmp/bww-repo.json -w "%{http_code}" \
-            -H "Accept: application/vnd.github+json" \
-            -H "Authorization: Bearer ${SYNC_TOKEN}" \
-            -H "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/Teufel2211/bww")"
+          echo "Testing Git access to Teufel2211/bww..."
+          git ls-remote mirror HEAD >/dev/null
 
-          case "${api_status}" in
-            200) echo "Authenticated repository access: OK" ;;
-            401) echo "::error::GitHub rejected the token (HTTP 401)."; exit 1 ;;
-            403) echo "::error::GitHub denied repository access (HTTP 403). Check Code Read/Write."; exit 1 ;;
-            404) echo "::error::GitHub returned 404. The token cannot see Teufel2211/bww."; exit 1 ;;
-            *) echo "::error::GitHub API returned HTTP ${api_status}."; cat /tmp/bww-repo.json; exit 1 ;;
-          esac
+          echo "Pushing source main to mirror..."
+          git push mirror HEAD:main --force
 
-      - name: Mirror source tree through GitHub API
-        env:
-          SYNC_TOKEN: ${{ secrets.BWW_SYNC_TOKEN }}
-          SOURCE_SHA: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-
-          api="https://api.github.com"
-          auth=(-H "Authorization: Bearer ${SYNC_TOKEN}" -H "Accept: application/vnd.github+json" -H "X-GitHub-Api-Version: 2022-11-28")
-
-          echo "Reading target main..."
-          target_sha="$(curl -fsS "${auth[@]}" "${api}/repos/Teufel2211/bww/git/ref/heads/main" | jq -r '.object.sha')"
-
-          if [ -z "${target_sha}" ] || [ "${target_sha}" = "null" ]; then
-            echo "::error::Could not determine target main SHA."
-            exit 1
-          fi
-
-          echo "Uploading source blobs..."
-          tree='[]'
-
-          while IFS= read -r -d '' path; do
-            mode="$(git ls-files -s -- "${path}" | awk '{print $1}')"
-            [ -n "${mode}" ] || { echo "::error::Could not determine mode for ${path}"; exit 1; }
-
-            encoded="$(base64 -w 0 -- "${path}")"
-            payload="$(jq -n --arg content "${encoded}" '{content:$content, encoding:"base64"}')"
-
-            blob_sha="$(curl -fsS -X POST "${auth[@]}" \
-              -H "Content-Type: application/json" \
-              --data "${payload}" \
-              "${api}/repos/Teufel2211/bww/git/blobs" | jq -r '.sha')"
-
-            if [ -z "${blob_sha}" ] || [ "${blob_sha}" = "null" ]; then
-              echo "::error::Failed to upload blob: ${path}"
-              exit 1
-            fi
-
-            tree="$(jq --arg path "${path}" --arg mode "${mode}" --arg sha "${blob_sha}" \
-              '. + [{path:$path, mode:$mode, type:"blob", sha:$sha}]' <<< "${tree}")"
-          done < <(git ls-files -z)
-
-          echo "Creating target tree..."
-          tree_payload="$(jq -n --argjson tree "${tree}" '{tree:$tree}')"
-          new_tree="$(curl -fsS -X POST "${auth[@]}" \
-            -H "Content-Type: application/json" \
-            --data "${tree_payload}" \
-            "${api}/repos/Teufel2211/bww/git/trees" | jq -r '.sha')"
-
-          if [ -z "${new_tree}" ] || [ "${new_tree}" = "null" ]; then
-            echo "::error::Failed to create target tree."
-            exit 1
-          fi
-
-          echo "Creating mirror commit..."
-          commit_payload="$(jq -n \
-            --arg message "Sync BWW from teamluan/BWW (${SOURCE_SHA})" \
-            --arg tree "${new_tree}" \
-            --arg parent "${target_sha}" \
-            '{message:$message, tree:$tree, parents:[$parent]}')"
-
-          new_commit="$(curl -fsS -X POST "${auth[@]}" \
-            -H "Content-Type: application/json" \
-            --data "${commit_payload}" \
-            "${api}/repos/Teufel2211/bww/git/commits" | jq -r '.sha')"
-
-          if [ -z "${new_commit}" ] || [ "${new_commit}" = "null" ]; then
-            echo "::error::Failed to create mirror commit."
-            exit 1
-          fi
-
-          echo "Updating target main..."
-          curl -fsS -X PATCH "${auth[@]}" \
-            -H "Content-Type: application/json" \
-            --data "$(jq -n --arg sha "${new_commit}" '{sha:$sha, force:true}') " \
-            "${api}/repos/Teufel2211/bww/git/refs/heads/main" >/dev/null
-
-          echo "Mirror complete: ${SOURCE_SHA} -> ${new_commit}"
+          echo "Mirror sync complete."
