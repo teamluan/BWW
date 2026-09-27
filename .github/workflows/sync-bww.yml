@@ -18,7 +18,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Push main to mirror repository
+      - name: Verify mirror authentication
         env:
           SYNC_TOKEN: ${{ secrets.BWW_SYNC_TOKEN }}
         run: |
@@ -28,6 +28,44 @@ jobs:
             echo "::error::BWW_SYNC_TOKEN is not configured."
             exit 1
           fi
+
+          echo "Checking PAT identity..."
+          USER_JSON="$(curl -fsS \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${SYNC_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/user)"
+
+          LOGIN="$(printf '%s' "${USER_JSON}" | jq -r '.login')"
+          echo "PAT account: ${LOGIN}"
+
+          if [ "${LOGIN}" != "Teufel2211" ]; then
+            echo "::error::BWW_SYNC_TOKEN belongs to '${LOGIN}', not 'Teufel2211'."
+            exit 1
+          fi
+
+          echo "Checking target repository API access..."
+          REPO_JSON="$(curl -fsS \
+            -H "Accept: application/vnd.github+json" \
+            -H "Authorization: Bearer ${SYNC_TOKEN}" \
+            -H "X-GitHub-Api-Version: 2022-11-28" \
+            https://api.github.com/repos/Teufel2211/bww)"
+
+          REPO_PRIVATE="$(printf '%s' "${REPO_JSON}" | jq -r '.private')"
+          PUSH_PERMISSION="$(printf '%s' "${REPO_JSON}" | jq -r '.permissions.push')"
+          echo "Target private: ${REPO_PRIVATE}"
+          echo "Target push permission: ${PUSH_PERMISSION}"
+
+          if [ "${REPO_PRIVATE}" != "true" ] || [ "${PUSH_PERMISSION}" != "true" ]; then
+            echo "::error::PAT can reach the target API, but does not have push permission."
+            exit 1
+          fi
+
+      - name: Push main to mirror repository
+        env:
+          SYNC_TOKEN: ${{ secrets.BWW_SYNC_TOKEN }}
+        run: |
+          set -euo pipefail
 
           git remote add mirror "https://x-access-token:${SYNC_TOKEN}@github.com/Teufel2211/bww.git"
 
