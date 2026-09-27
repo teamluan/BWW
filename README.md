@@ -72,7 +72,3 @@ Beim Herunterfahren wird der Status auf `offline` gesetzt.
 5. `npm start`
 
 Weitere Bot-Funktionen und Commands stehen weiter unten in dieser Dokumentation.
-
-
-<!-- mirror-sync-test-2026-09-27 -->
-<!-- mirror-final-test-2026-09-27 -->
