@@ -45,8 +45,8 @@ jobs:
             exit 0
           fi
 
-          echo "Differences detected. Performing full mirror push..."
-          git push mirror --mirror --force
+          echo "Differences detected. Synchronizing branches and tags..."
+          git push mirror --force --prune 'refs/heads/*:refs/heads/*' 'refs/tags/*:refs/tags/*'
 
           echo "Verifying target refs after synchronization..."
           TARGET_HEADS_AFTER="$(git ls-remote --heads mirror | awk '{print $2" "$1}' | sort)"
