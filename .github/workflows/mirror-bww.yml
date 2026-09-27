@@ -1,0 +1,37 @@
+name: Mirror BWW from source
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_sha:
+        description: Source commit SHA to mirror
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Clone source commit
+        run: |
+          set -euo pipefail
+          git clone https://github.com/teamluan/BWW.git source
+          cd source
+          git checkout "${{ inputs.source_sha }}"
+
+      - name: Push source to mirror
+        env:
+          GH_TOKEN: ${{ secrets.BWW_MIRROR_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd source
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          gh auth setup-git
+          git remote add mirror https://github.com/Teufel2211/bww.git
+          echo "Pushing source commit ${{ inputs.source_sha }} to Teufel2211/bww..."
+          git push mirror HEAD:main --force
+          echo "Mirror sync complete."
