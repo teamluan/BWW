@@ -24,14 +24,21 @@ jobs:
 
       - name: Check mirror and sync only when needed
         env:
-          GH_TOKEN: ${{ secrets.BWW_MIRROR_TOKEN }}
+          MIRROR_TOKEN: ${{ secrets.BWW_MIRROR_TOKEN }}
         run: |
           set -euo pipefail
           cd source
 
+          if [ -z "${MIRROR_TOKEN}" ]; then
+            echo "::error::BWW_MIRROR_TOKEN is not configured."
+            exit 1
+          fi
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          gh auth setup-git
+
+          # Use the PAT explicitly for Git HTTPS authentication.
+          git config credential.helper '!f() { echo username=x-access-token; echo password=$MIRROR_TOKEN; }; f'
           git remote add mirror https://github.com/Teufel2211/bww.git
 
           echo "Checking Teufel2211/bww against source commit ${{ inputs.source_sha }}..."
