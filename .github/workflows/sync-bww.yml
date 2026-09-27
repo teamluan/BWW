@@ -11,6 +11,7 @@ permissions:
 
 jobs:
   sync:
+    if: github.repository == 'teamluan/BWW'
     runs-on: ubuntu-24.04
     steps:
       - name: Dispatch mirror workflow
@@ -42,4 +43,4 @@ jobs:
             exit 1
           fi
 
-          echo "Mirror workflow dispatched successfully.";
+          echo "Mirror workflow dispatched successfully."
