@@ -22,16 +22,27 @@ jobs:
           cd source
           git checkout "${{ inputs.source_sha }}"
 
-      - name: Push source to mirror
+      - name: Check mirror and sync only when needed
         env:
           GH_TOKEN: ${{ secrets.BWW_MIRROR_TOKEN }}
         run: |
           set -euo pipefail
           cd source
+
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           gh auth setup-git
           git remote add mirror https://github.com/Teufel2211/bww.git
-          echo "Pushing source commit ${{ inputs.source_sha }} to Teufel2211/bww..."
+
+          echo "Checking Teufel2211/bww against source commit ${{ inputs.source_sha }}..."
+          git fetch mirror main
+
+          if git diff --quiet mirror/main HEAD -- .; then
+            echo "Already synchronized. No changes to push."
+            exit 0
+          fi
+
+          echo "Differences detected. Synchronizing mirror..."
+          git diff --stat mirror/main HEAD -- . || true
           git push mirror HEAD:main --force
           echo "Mirror sync complete."
