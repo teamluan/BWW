@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { findDashboardCode, getGuildInfo, markDashboardCodeUsed, setDashboardSession } from '../../../../lib/dashboard';
+import { findDashboardCode, getGuildInfo, consumeDashboardCode, setDashboardSession } from '../../../../lib/dashboard';
 
 export async function POST(request) {
   try {
@@ -8,7 +8,8 @@ export async function POST(request) {
     if (!record) return NextResponse.json({ ok: false, error: 'Ungültiger oder abgelaufener Dashboard-Code.' }, { status: 401 });
 
     const expiresAt = new Date(record.expires_at).getTime();
-    await markDashboardCodeUsed(record.id);
+    const consumed = await consumeDashboardCode(record.id);
+    if (!consumed) return NextResponse.json({ ok: false, error: 'Der Dashboard-Code wurde bereits verwendet.' }, { status: 409 });
     await setDashboardSession(record.id, record.guild_id, expiresAt);
 
     return NextResponse.json({ ok: true, guild: await getGuildInfo(record.guild_id) });
