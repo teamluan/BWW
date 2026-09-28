@@ -5,7 +5,7 @@ const welcome = require('./events/welcome');
 const interactions = require('./events/interactions');
 const { startGiveawayLoop } = require('./utils/giveaway');
 const { updateStatusMessage, formatUptime } = require('./utils/status');
-const { isConfigured: databaseConfigured, upsertBotStatus, syncGuilds, markOffline } = require('./utils/database');
+const { isConfigured: databaseConfigured, getGuildSettings, upsertBotStatus, syncGuilds, markOffline } = require('./utils/database');
 
 const token = process.env.DISCORD_TOKEN || '';
 if (!token) {
@@ -45,21 +45,27 @@ client.once(Events.ClientReady, async (bot) => {
   setInterval(() => syncDatabase(bot, 'online'), 30 * 1000);
   startGiveawayLoop(client);
 
-  try {
-    const cfg = require('./config').load();
-    const mode = cfg.status?.mode || 'online';
-    if (cfg.status?.enabled && cfg.status?.channelId) {
-      await updateStatusMessage(client, mode, mode === 'online' ? { uptime: formatUptime(client.uptime) } : {});
-    }
-  } catch {}
-
-  setInterval(() => {
+  for (const guild of client.guilds.cache.values()) {
     try {
-      const cfg = require('./config').load();
-      if (cfg.status?.enabled && cfg.status?.mode === 'online') {
-        updateStatusMessage(client, 'online', { uptime: formatUptime(client.uptime) }).catch(() => {});
+      const cfg = await getGuildSettings(guild.id);
+      if (cfg.status?.enabled && cfg.status?.channelId && cfg.status?.messageId) {
+        const mode = cfg.status.mode || 'online';
+        await updateStatusMessage(client, guild.id, mode, mode === 'online' ? { uptime: formatUptime(client.uptime) } : {});
       }
-    } catch {}
+    } catch (err) {
+      console.warn('[BWW] Status-Synchronisierung fehlgeschlagen:', err.message);
+    }
+  }
+
+  setInterval(async () => {
+    for (const guild of client.guilds.cache.values()) {
+      try {
+        const cfg = await getGuildSettings(guild.id);
+        if (cfg.status?.enabled && cfg.status?.mode === 'online') {
+          await updateStatusMessage(client, guild.id, 'online', { uptime: formatUptime(client.uptime) });
+        }
+      } catch {}
+    }
   }, 5 * 60 * 1000);
 });
 
@@ -80,7 +86,7 @@ client.on(Events.InteractionCreate, (interaction) => {
 });
 
 async function shutdown(signal) {
-  try { await updateStatusMessage(client, 'offline'); } catch {}
+  for (const guild of client.guilds.cache.values()) { try { await updateStatusMessage(client, guild.id, 'offline'); } catch {} }
   try { await markOffline(client); } catch (err) {
     console.error('[BWW] Offline-Status konnte nicht gespeichert werden:', err.message);
   }
