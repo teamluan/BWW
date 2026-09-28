@@ -55,6 +55,7 @@ const commands = [
   { name: 'setup-status', description: 'Status-Embed Kanal festlegen (online/offline/wartung).', options: [{ name: 'channel', description: 'Kanal f\u00FCr Status-Embed', type: 7, required: true, channel_types: [0] }]},
   { name: 'wartung', description: 'Wartungsmodus umschalten (gelb).', options: [{ name: 'aktiv', description: 'true=an, false=aus', type: 5, required: true }, { name: 'grund', description: 'Grund f\u00FCr Wartung', type: 3, required: false }]},
   { name: 'restart', description: 'Startet den Bot neu (Admin).' },
+  { name: 'dashboard-code', description: 'Erzeugt einen 60-Minuten-Zugangscode für das BWW-Web-Dashboard (Admin).' },
   { name: 'kick', description: 'Kickt ein Mitglied.', options: [
     { name: 'user', description: 'Mitglied', type: 6, required: true },
     { name: 'grund', description: 'Grund', type: 3, required: false }
