@@ -178,11 +178,17 @@ export async function findDashboardCode(code) {
   return rows?.[0] || null;
 }
 
-export async function markDashboardCodeUsed(id) {
-  await dbRequest(`bww_dashboard_logins?id=eq.${encodeURIComponent(id)}`, {
-    method: 'PATCH',
-    body: JSON.stringify({ used_at: new Date().toISOString() })
-  });
+export async function consumeDashboardCode(id) {
+  const response = await dbRequest(
+    `bww_dashboard_logins?id=eq.${encodeURIComponent(id)}&used_at=is.null&expires_at=gt.${encodeURIComponent(new Date().toISOString())}`,
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({ used_at: new Date().toISOString() })
+    }
+  );
+  const rows = await response.json();
+  return rows?.[0] || null;
 }
 
 export { dbRequest, encodeSession };
