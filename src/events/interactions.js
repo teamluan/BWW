@@ -1,6 +1,6 @@
 const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MediaGalleryBuilder, MediaGalleryItemBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const { isAllowed } = require('../commands');
-const { save } = require('../config');
+const { getGuildSettings, saveGuildSettings, createDashboardCode } = require('../utils/database');
 const { verifyComponents } = require('../utils/embeds');
 const { ticketContainer, createTicket, TICKET_REASONS } = require('../utils/tickets');
 const { loadGiveaways, saveGiveaways, giveawayContainer, startGiveaway, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage } = require('../utils/giveaway');
@@ -25,7 +25,7 @@ function canCloseTicket(interaction, config) {
 
 module.exports = async (interaction, client) => {
   try {
-  const config = require('../config').load();
+  const config = await getGuildSettings(interaction.guildId);
   if (interaction.isButton() && interaction.customId === 'bww_verify') {
     if (!config.verify.roleId) return interaction.reply({ content: '❌ Keine Verifizierungsrolle eingerichtet.', ...EPHEMERAL });
     const role = interaction.guild.roles.cache.get(config.verify.roleId) || await interaction.guild.roles.fetch(config.verify.roleId).catch(() => null);
@@ -90,19 +90,29 @@ module.exports = async (interaction, client) => {
   const command = interaction.commandName;
   if (command.startsWith('setup-')) {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen das Setup ändern.', ...EPHEMERAL });
-    if (command === 'setup-welcome') { config.welcome = { enabled: true, channelId: interaction.options.getChannel('channel').id, title: interaction.options.getString('title') || '', message: interaction.options.getString('text', true) }; save(config); return interaction.reply({ content: '✅ Welcome-System gespeichert.', ...EPHEMERAL }); }
-    if (command === 'setup-verify') { config.verify = { enabled: true, channelId: interaction.options.getChannel('channel').id, roleId: interaction.options.getRole('role').id, message: interaction.options.getString('text', true) }; save(config); return interaction.reply({ content: '✅ Verify-System gespeichert.', ...EPHEMERAL }); }
-    if (command === 'setup-ticket') { config.ticket = { enabled: true, categoryId: interaction.options.getChannel('kategorie').id, roleId: interaction.options.getRole('rolle').id }; save(config); return interaction.reply({ content: '✅ Ticket-System gespeichert.', ...EPHEMERAL }); }
+    if (command === 'setup-welcome') { config.welcome = { enabled: true, channelId: interaction.options.getChannel('channel').id, title: interaction.options.getString('title') || '', message: interaction.options.getString('text', true) }; await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: '✅ Welcome-System gespeichert.', ...EPHEMERAL }); }
+    if (command === 'setup-verify') { config.verify = { enabled: true, channelId: interaction.options.getChannel('channel').id, roleId: interaction.options.getRole('role').id, message: interaction.options.getString('text', true) }; await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: '✅ Verify-System gespeichert.', ...EPHEMERAL }); }
+    if (command === 'setup-ticket') { config.ticket = { enabled: true, categoryId: interaction.options.getChannel('kategorie').id, roleId: interaction.options.getRole('rolle').id }; await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: '✅ Ticket-System gespeichert.', ...EPHEMERAL }); }
     if (command === 'setup-status') {
       const channel = interaction.options.getChannel('channel');
       try {
         const sent = await createStatusMessage(channel, 'online', { reason: 'Initial' });
         config.status = { enabled: true, channelId: channel.id, messageId: sent.id, mode: 'online' };
-        save(config);
+        await saveGuildSettings(interaction.guildId, config, interaction.user.id);
         return interaction.reply({ content: `✅ Status-Embed in ${channel} erstellt (🟢 Online).`, ...EPHEMERAL });
       } catch (err) { return interaction.reply({ content: `❌ Status-Embed fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
     }
-    const name = interaction.options.getString('command', true); const role = interaction.options.getRole('role'); const allow = interaction.options.getBoolean('erlauben', true); config.permissions[name] ||= []; if (allow && !config.permissions[name].includes(role.id)) config.permissions[name].push(role.id); if (!allow) config.permissions[name] = config.permissions[name].filter(id => id !== role.id); save(config); return interaction.reply({ content: `✅ Rolle ${role} für /${name} ${allow ? 'erlaubt' : 'entfernt'}.`, ...EPHEMERAL });
+    const name = interaction.options.getString('command', true); const role = interaction.options.getRole('role'); const allow = interaction.options.getBoolean('erlauben', true); config.permissions[name] ||= []; if (allow && !config.permissions[name].includes(role.id)) config.permissions[name].push(role.id); if (!allow) config.permissions[name] = config.permissions[name].filter(id => id !== role.id); await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: `✅ Rolle ${role} für /${name} ${allow ? 'erlaubt' : 'entfernt'}.`, ...EPHEMERAL });
+  }
+  if (command === 'dashboard-code') {
+    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen einen Dashboard-Zugangscode erzeugen.', ...EPHEMERAL });
+    try {
+      const result = await createDashboardCode(interaction.guildId, interaction.user.id, 60);
+      const expires = Math.floor(new Date(result.expiresAt).getTime() / 1000);
+      return interaction.reply({ content: '🔐 Dashboard-Code: `' + result.code + '`\nGültig bis <t:' + expires + ':F>.\nÖffne danach die BWW-Website und gib den Code ein.', ...EPHEMERAL });
+    } catch (err) {
+      return interaction.reply({ content: '❌ Dashboard-Code konnte nicht erstellt werden: ' + err.message, ...EPHEMERAL });
+    }
   }
   if (command === 'restart') {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen den Bot neu starten.', ...EPHEMERAL });
@@ -115,8 +125,8 @@ module.exports = async (interaction, client) => {
     const mode = aktiv ? 'maintenance' : 'online';
     config.status = config.status || {};
     config.status.mode = mode;
-    save(config);
-    const ok = await updateStatusMessage(client, mode, { reason: grund });
+    await saveGuildSettings(interaction.guildId, config, interaction.user.id);
+    const ok = await updateStatusMessage(client, interaction.guildId, mode, { reason: grund });
     return interaction.reply({ content: ok ? `${aktiv ? '🟡 Wartung aktiviert' : '🟢 Wartung deaktiviert'}${grund ? ': ' + grund : ''}` : `✅ Modus auf ${mode} gesetzt (kein Status-Channel konfiguriert).`, ...EPHEMERAL });
   }
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
@@ -250,11 +260,11 @@ module.exports = async (interaction, client) => {
   }
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'verify') {
-    try { config.verify.channelId = interaction.channelId; config.verify.enabled = true; save(config); await interaction.channel.send({ components: [verifyComponents(config)], flags: V2, allowedMentions: { parse: [] } }); return interaction.reply({ content: '✅ Verify-Panel gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Verify-Panel fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
+    try { config.verify.channelId = interaction.channelId; config.verify.enabled = true; await saveGuildSettings(interaction.guildId, config, interaction.user.id); await interaction.channel.send({ components: [verifyComponents(config)], flags: V2, allowedMentions: { parse: [] } }); return interaction.reply({ content: '✅ Verify-Panel gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Verify-Panel fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
   }
   if (command === 'setup') {
     const container = new ContainerBuilder().setAccentColor(0x2F3136);
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## BWW Setup\n`/setup-welcome` [channel] [text] [title?] → Welcome\n`/setup-verify` → Verify\n`/setup-ticket` [kategorie] [rolle] → Ticket\n`/setup-status` [channel] → Status-Embed\n`/setup-permission` → Command-Berechtigungen\n`/restart` → Bot neu starten\n`/wartung` → Wartung an/aus\n`/panel-create` → Custom Panel (10 Buttons) speichern+senden\n`/panel-add-button` → Button hinzufügen\n`/panel-send`/`/panel-delete`/`/panel-list` → Panels verwalten\n`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n`/giverole`, `/removerole` → Rollen'));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## BWW Setup\n`/setup-welcome` [channel] [text] [title?] → Welcome\n`/setup-verify` → Verify\n`/setup-ticket` [kategorie] [rolle] → Ticket\n`/setup-status` [channel] → Status-Embed\n`/setup-permission` → Command-Berechtigungen\n`/restart` → Bot neu starten\n`/dashboard-code` → Web-Dashboard-Zugang erzeugen\n`/wartung` → Wartung an/aus\n`/panel-create` → Custom Panel (10 Buttons) speichern+senden\n`/panel-add-button` → Button hinzufügen\n`/panel-send`/`/panel-delete`/`/panel-list` → Panels verwalten\n`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n`/giverole`, `/removerole` → Rollen'));
     container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent('**Welcome-Platzhalter:**\n`{user}` → Ping\n`{username}` → Name\n`{displayname}` → Server-Nickname\n`{server}` → Servername\n`{id}` → User-ID\n`{count}` → Mitgliederzahl\n\nDer Avatar des Users erscheint automatisch oben rechts.'));
     return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
