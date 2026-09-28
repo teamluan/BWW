@@ -67,6 +67,7 @@ export default async function Home() {
           </span>
         </a>
 
+        <a className="topbar-link" href="/settings">Einstellungen</a>
         <div className="nav-status">
           <span className={`status-indicator ${botStatus.className}`} />
           <span>{botStatus.label}</span>
