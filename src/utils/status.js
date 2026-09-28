@@ -31,9 +31,11 @@ async function createStatusMessage(channel, status = 'online', options = {}) {
   return sent;
 }
 
-async function updateStatusMessage(client, status = 'online', options = {}) {
+async function updateStatusMessage(client, guildId, status = 'online', options = {}) {
   try {
-    const config = require('../config').load();
+    const { getGuildSettings } = require('./database');
+    if (!guildId) return false;
+    const config = await getGuildSettings(guildId);
     if (!config.status?.channelId || !config.status?.messageId) return false;
     const channel = await client.channels.fetch(config.status.channelId).catch(() => null);
     if (!channel || !channel.isTextBased()) return false;
