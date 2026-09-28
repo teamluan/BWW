@@ -1,253 +1,76 @@
-async function loadJson(path) {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
-  if (!url || !key) return null;
+'use client';
 
-  try {
-    const response = await fetch(
-      `${url.replace(/\/$/, '')}/rest/v1/${path}`,
-      {
-        headers: {
-          apikey: key,
-          Authorization: `Bearer ${key}`
-        },
-        next: { revalidate: 15 }
-      }
-    );
+import { useEffect, useState } from 'react';
 
-    if (!response.ok) return null;
-    return response.json();
-  } catch {
-    return null;
+export default function Home() {
+  const [code, setCode] = useState('');
+  const [status, setStatus] = useState('loading');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    fetch('/api/dashboard/settings', { cache: 'no-store' })
+      .then(async (response) => {
+        if (response.ok) window.location.replace('/dashboard');
+        else setStatus('login');
+      })
+      .catch(() => setStatus('login'));
+  }, []);
+
+  async function login(event) {
+    event.preventDefault();
+    setBusy(true);
+    setError('');
+    try {
+      const response = await fetch('/api/dashboard/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ code })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || 'Anmeldung fehlgeschlagen.');
+      window.location.replace('/dashboard');
+    } catch (err) {
+      setError(err.message || 'Anmeldung fehlgeschlagen.');
+      setBusy(false);
+    }
   }
-}
 
-function formatNumber(value) {
-  return new Intl.NumberFormat('de-DE').format(Number(value) || 0);
-}
-
-function formatUptime(seconds) {
-  const total = Math.max(0, Number(seconds) || 0);
-  const days = Math.floor(total / 86400);
-  const hours = Math.floor((total % 86400) / 3600);
-  const minutes = Math.floor((total % 3600) / 60);
-
-  if (days) return `${days}T ${hours}Std`;
-  if (hours) return `${hours}Std ${minutes}Min`;
-  return `${minutes}Min`;
-}
-
-function getStatus(status) {
-  if (status === 'online') return { label: 'Online', className: 'online' };
-  if (status === 'maintenance') return { label: 'Wartung', className: 'maintenance' };
-  return { label: 'Offline', className: 'offline' };
-}
-
-export default async function Home() {
-  const [statusRows, guildRows] = await Promise.all([
-    loadJson('bw_bot_status?select=*&id=eq.primary&limit=1'),
-    loadJson('bw_guilds?select=guild_id,name,member_count,icon_url,updated_at&order=name.asc')
-  ]);
-
-  const status = statusRows?.[0] ?? null;
-  const guilds = Array.isArray(guildRows) ? guildRows : [];
-  const botStatus = getStatus(status?.status);
-  const serverCount = Number(status?.guild_count ?? guilds.length) || 0;
-  const memberCount = Number(status?.member_count) || 0;
-  const ping = Number(status?.ping_ms);
+  if (status === 'loading') {
+    return <main className="auth-page"><div className="auth-loading"><span className="brand-icon">B</span><span>Verbindung wird geprüft…</span></div></main>;
+  }
 
   return (
-    <main className="site-shell">
-      <nav className="topbar">
-        <a className="brand" href="/" aria-label="BWW Dashboard Startseite">
-          <span className="brand-mark">B</span>
-          <span>
-            <strong>BWW</strong>
-            <small>COMMAND CENTER</small>
-          </span>
-        </a>
-
-        <a className="topbar-link" href="/settings">Einstellungen</a>
-        <div className="nav-status">
-          <span className={`status-indicator ${botStatus.className}`} />
-          <span>{botStatus.label}</span>
-          <span className="nav-separator" />
-          <span className="live-label">LIVE</span>
-        </div>
-      </nav>
-
-      <section className="hero">
-        <div className="hero-copy">
-          <div className="hero-kicker">
-            <span className="pulse" />
-            DISCORD INFRASTRUCTURE
+    <main className="auth-page">
+      <div className="auth-background" aria-hidden="true"><span className="auth-grid" /><span className="glow glow-one" /><span className="glow glow-two" /></div>
+      <section className="auth-layout">
+        <div className="auth-intro">
+          <a className="brand-lockup" href="/"><span className="brand-icon">B</span><span><strong>BWW</strong><small>COMMAND CENTER</small></span></a>
+          <div className="auth-copy">
+            <span className="eyebrow"><i /> PRIVATE ADMIN PORTAL</span>
+            <h1>Dein Server.<br /><em>Deine Kontrolle.</em></h1>
+            <p>Ein zentraler Arbeitsplatz für Status, Systeme und die komplette Konfiguration deines BWW Discord Bots.</p>
           </div>
-          <h1>Alles im Blick.</h1>
-          <p>
-            Das zentrale BWW Dashboard für Bot-Status, Performance und
-            verbundene Discord-Server.
-          </p>
-
-          <div className="hero-actions">
-            <a className="primary-button" href="#servers">
-              Server ansehen
-              <span>↓</span>
-            </a>
-            <span className="refresh-note">
-              Automatische Aktualisierung · 15 Sek.
-            </span>
+          <div className="auth-points">
+            <div><span>01</span><strong>Live-Übersicht</strong><small>Bot, Ping, Server und Mitglieder.</small></div>
+            <div><span>02</span><strong>Zentrale Einstellungen</strong><small>Alle Bot-Optionen aus einer Oberfläche.</small></div>
+            <div><span>03</span><strong>Sicherer Zugang</strong><small>Temporärer Code direkt aus Discord.</small></div>
           </div>
         </div>
-
-        <div className="hero-orbit" aria-hidden="true">
-          <div className="orbit orbit-one" />
-          <div className="orbit orbit-two" />
-          <div className="core">
-            <span>BWW</span>
-            <small>ONLINE</small>
-          </div>
-        </div>
+        <section className="auth-card">
+          <div className="auth-card-top"><span className="auth-card-icon">↗</span><span className="auth-secure">SECURE ACCESS</span></div>
+          <span className="eyebrow">ADMIN LOGIN</span>
+          <h2>Willkommen zurück.</h2>
+          <p className="auth-card-copy">Erzeuge in Discord mit <code>/dashboard-code</code> einen temporären Zugangscode und gib ihn hier ein.</p>
+          <form className="auth-form" onSubmit={login}>
+            <label><span>Dashboard-Code</span><input value={code} onChange={(event) => setCode(event.target.value.toUpperCase())} placeholder="z. B. 8F3K-2P7Q" autoComplete="one-time-code" spellCheck="false" autoFocus /></label>
+            {error && <div className="form-alert error">{error}</div>}
+            <button className="auth-submit" disabled={busy || !code.trim()}><span>{busy ? 'Anmeldung läuft…' : 'Anmelden'}</span><b>→</b></button>
+          </form>
+          <div className="auth-help"><span className="help-dot" /><span>Der Code ist nur einmal verwendbar und zeitlich begrenzt.</span></div>
+          <div className="auth-footer"><span>BWW Command Center</span><span>© {new Date().getFullYear()}</span></div>
+        </section>
       </section>
-
-      <section className="metric-grid" aria-label="Bot Statistiken">
-        <article className="metric-card featured">
-          <div className="metric-icon">◎</div>
-          <div className="metric-content">
-            <span>Bot Status</span>
-            <strong>{botStatus.label}</strong>
-            <small>Aktueller Verbindungsstatus</small>
-          </div>
-          <span className={`metric-dot ${botStatus.className}`} />
-        </article>
-
-        <article className="metric-card">
-          <div className="metric-icon">◈</div>
-          <div className="metric-content">
-            <span>Discord Server</span>
-            <strong>{formatNumber(serverCount)}</strong>
-            <small>Verbundene Guilds</small>
-          </div>
-        </article>
-
-        <article className="metric-card">
-          <div className="metric-icon">♙</div>
-          <div className="metric-content">
-            <span>Mitglieder</span>
-            <strong>{formatNumber(memberCount)}</strong>
-            <small>Über alle Server</small>
-          </div>
-        </article>
-
-        <article className="metric-card">
-          <div className="metric-icon">↯</div>
-          <div className="metric-content">
-            <span>Ping</span>
-            <strong>{Number.isFinite(ping) && ping >= 0 ? `${ping}<em>ms</em>` : '—'}</strong>
-            <small>WebSocket Latenz</small>
-          </div>
-        </article>
-      </section>
-
-      <section className="content-grid">
-        <article className="server-panel" id="servers">
-          <div className="section-heading">
-            <div>
-              <span className="section-label">DISCORD NETWORK</span>
-              <h2>Verbundene Server</h2>
-            </div>
-            <span className="count-badge">{formatNumber(guilds.length)} Server</span>
-          </div>
-
-          {guilds.length ? (
-            <div className="server-list">
-              {guilds.map((guild, index) => (
-                <article className="server-row" key={guild.guild_id}>
-                  <span className="server-number">
-                    {String(index + 1).padStart(2, '0')}
-                  </span>
-
-                  {guild.icon_url ? (
-                    <img
-                      className="server-icon"
-                      src={guild.icon_url}
-                      alt=""
-                      width="52"
-                      height="52"
-                    />
-                  ) : (
-                    <div className="server-icon fallback">
-                      {(guild.name || '?').slice(0, 1).toUpperCase()}
-                    </div>
-                  )}
-
-                  <div className="server-info">
-                    <strong>{guild.name || 'Unbenannter Server'}</strong>
-                    <span>
-                      {formatNumber(guild.member_count)} Mitglieder
-                    </span>
-                  </div>
-
-                  <div className="server-meta">
-                    <span className="server-online-dot" />
-                    <span>Verbunden</span>
-                  </div>
-
-                  <span className="server-arrow">↗</span>
-                </article>
-              ))}
-            </div>
-          ) : (
-            <div className="empty-state">
-              <span>◌</span>
-              <strong>Noch keine Serverdaten</strong>
-              <p>Der Bot hat bisher keine Guild-Daten an das Dashboard übertragen.</p>
-            </div>
-          )}
-        </article>
-
-        <aside className="side-stack">
-          <article className="info-card uptime-card">
-            <div className="section-heading compact">
-              <div>
-                <span className="section-label">SYSTEM</span>
-                <h3>Uptime</h3>
-              </div>
-              <span className="mini-icon">◷</span>
-            </div>
-            <strong className="uptime-value">
-              {formatUptime(status?.uptime_seconds)}
-            </strong>
-            <div className="uptime-line">
-              <span />
-            </div>
-            <p>Seit dem letzten erfolgreichen Bot-Start.</p>
-          </article>
-
-          <article className="info-card">
-            <div className="section-heading compact">
-              <div>
-                <span className="section-label">BOT IDENTITÄT</span>
-                <h3>{status?.bot_tag || 'BWW Bot'}</h3>
-              </div>
-              <span className={`identity-badge ${botStatus.className}`}>●</span>
-            </div>
-            <div className="info-list">
-              <div><span>Status</span><strong>{botStatus.label}</strong></div>
-              <div><span>Server</span><strong>{formatNumber(serverCount)}</strong></div>
-              <div><span>Mitglieder</span><strong>{formatNumber(memberCount)}</strong></div>
-            </div>
-          </article>
-        </aside>
-      </section>
-
-      <footer className="footer">
-        <div className="footer-brand">
-          <span className="brand-mark small">B</span>
-          <span>BWW Dashboard</span>
-        </div>
-        <span>Live-Daten aus Supabase · Aktualisierung alle 15 Sekunden</span>
-        <span>© {new Date().getFullYear()} BWW</span>
-      </footer>
     </main>
   );
 }
