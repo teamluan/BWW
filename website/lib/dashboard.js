@@ -171,7 +171,7 @@ export async function findDashboardCode(code) {
   if (!normalized) return null;
   const hash = crypto.createHash('sha256').update(normalized, 'utf8').digest('hex');
   const response = await dbRequest(
-    `bww_dashboard_logins?select=id,guild_id,expires_at&code_hash=eq.${encodeURIComponent(hash)}&expires_at=gt.${encodeURIComponent(new Date().toISOString())}&limit=1`,
+    `bww_dashboard_logins?select=id,guild_id,expires_at&code_hash=eq.${encodeURIComponent(hash)}&used_at=is.null&expires_at=gt.${encodeURIComponent(new Date().toISOString())}&limit=1`,
     { headers: { Prefer: 'return=representation' } }
   );
   const rows = await response.json();
@@ -186,3 +186,24 @@ export async function markDashboardCodeUsed(id) {
 }
 
 export { dbRequest, encodeSession };
+
+
+export async function getOverviewData(guildId) {
+  const [statusResponse, guildsResponse, server] = await Promise.all([
+    dbRequest(
+      'bww_bot_status?select=*&id=eq.primary&limit=1',
+      { headers: { Prefer: 'return=representation' } }
+    ),
+    dbRequest(
+      'bww_guilds?select=guild_id,name,member_count,icon_url,updated_at&order=name.asc',
+      { headers: { Prefer: 'return=representation' } }
+    ),
+    getGuildInfo(guildId)
+  ]);
+
+  return {
+    status: (await statusResponse.json())?.[0] || null,
+    guilds: (await guildsResponse.json()) || [],
+    server
+  };
+}
