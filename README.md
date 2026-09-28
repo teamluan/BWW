@@ -1,29 +1,38 @@
 # BWW Discord Bot
 
-Discord.js-Bot mit öffentlichem Dashboard und Supabase-Datenbank.
+Discord.js-Bot mit öffentlichem Dashboard und zentraler Supabase-Konfiguration.
 
 ## Architektur
 
 - `src/` → Discord-Bot
 - `website/` → Next.js-Dashboard
 - `supabase/migrations/` → versionierte Datenbank-Schemata
-- `config/*.json` → lokale Bot-Konfiguration, bis die jeweiligen Systeme vollständig migriert sind
-- Supabase speichert Bot-Status und die öffentliche Guild-Übersicht.
-- Die Website liest ausschließlich öffentliche, per RLS freigegebene Daten.
-- Der Bot verwendet ausschließlich serverseitig `SUPABASE_SECRET_KEY`.
+- `bww_guild_settings` → zentrale Einstellungen pro Discord-Guild
+- `bww_dashboard_logins` → temporäre Website-Zugangscodes
+- `bww_bot_status` → Bot-Status, Ping, Uptime und Mitgliederzahlen
+- `bww_guilds` → öffentliche Guild-Übersicht
+- `bw_*` → ältere Dashboard-Tabellen; werden nur noch aus Kompatibilitätsgründen vorgehalten
+
+## Konfiguration
+
+Bot-Einstellungen werden nicht mehr aus `config/*.json` geladen.
+
+Administratoren können die Einstellungen über Discord oder das Web-Dashboard ändern:
+
+- `/setup-welcome` → Welcome-Channel, Text und Titel
+- `/setup-verify` → Verify-Channel, Rolle und Text
+- `/setup-ticket` → Ticket-Kategorie und Support-Rolle
+- `/setup-status` → Status-Embed einrichten
+- `/setup-permission` → Rollenberechtigungen für Commands
+- `/wartung` → Online/Wartung umschalten
+- `/dashboard-code` → 60-Minuten-Zugangscode für das Web-Dashboard
+- `/setup` → Übersicht der verfügbaren Verwaltungsbefehle
+
+Die Website unter `/settings` bearbeitet dieselben Werte. Der Bot lädt die Einstellungen regelmäßig aus Supabase, sodass Änderungen aus Discord und Website dieselbe zentrale Quelle verwenden.
 
 ## Website
 
 Die Website liegt direkt in `website/` und verwendet Next.js 16.3.6.
-
-Lokal:
-
-```bash
-cd website
-npm install
-copy .env.example .env.local
-npm run dev
-```
 
 Für Vercel: Repository importieren und **Root Directory = `website`** setzen.
 
@@ -32,36 +41,22 @@ Benötigte Website-Variablen:
 ```dotenv
 NEXT_PUBLIC_SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
 NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY=sb_publishable_xxxxxxxxxxxxxxxxx
+SUPABASE_URL=https://YOUR_PROJECT_REF.supabase.co
+SUPABASE_SECRET_KEY=sb_secret_xxxxxxxxxxxxxxxxx
+BWW_DASHBOARD_SECRET=replace-with-a-long-random-secret
 ```
 
-Die Supabase Secret Key darf niemals in die Website-Umgebung oder ins Frontend gelangen.
+`SUPABASE_SECRET_KEY` und `BWW_DASHBOARD_SECRET` sind ausschließlich serverseitig zu setzen und dürfen nicht mit `NEXT_PUBLIC_` beginnen.
 
 ## Datenbank
 
-Die Migration liegt unter:
+Die zentrale Migration liegt unter:
 
 ```
-supabase/migrations/20260926190000_bww_dashboard.sql
+supabase/migrations/20260928121000_bww_central_settings.sql
 ```
 
-Sie erstellt:
-
-- `bww_bot_status` → Online-/Offline-Status, Ping, Uptime und Mitgliederzahlen
-- `bww_guilds` → öffentliche Guild-Übersicht
-
-RLS ist aktiviert. Die Website darf nur lesen; Schreibrechte bleiben beim Bot.
-
-**Hinweis:** Neue Tabellen im öffentlichen Schema werden bei Supabase nicht mehr automatisch über die Data API freigegeben. Die Migration setzt die benötigten Grants explizit. citeturn0search1turn0search5
-
-## Bot-Datenbank-Synchronisierung
-
-Wenn `SUPABASE_URL` und `SUPABASE_SECRET_KEY` gesetzt sind, synchronisiert der Bot:
-
-- beim Start
-- alle 30 Sekunden
-- beim Betreten/Verlassen eines Guilds
-
-Beim Herunterfahren wird der Status auf `offline` gesetzt.
+Sie legt bzw. pflegt die `bww_`-Tabellen und aktiviert RLS. Die öffentlichen Dashboard-Tabellen dürfen nur gelesen werden; Einstellungen und Dashboard-Codes sind nicht öffentlich erreichbar.
 
 ## Start
 
@@ -70,5 +65,3 @@ Beim Herunterfahren wird der Status auf `offline` gesetzt.
 3. `.env.example` → `.env`
 4. Supabase-Migration ausführen
 5. `npm start`
-
-Weitere Bot-Funktionen und Commands stehen weiter unten in dieser Dokumentation.
