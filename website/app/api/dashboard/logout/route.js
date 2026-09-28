@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { clearDashboardSession } from '../../../lib/dashboard';
+import { clearDashboardSession } from '../../../../lib/dashboard';
 
 export async function POST() {
   await clearDashboardSession();
