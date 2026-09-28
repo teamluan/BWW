@@ -4,7 +4,7 @@ const { commands } = require('./commands');
 const welcome = require('./events/welcome');
 const interactions = require('./events/interactions');
 const { startGiveawayLoop } = require('./utils/giveaway');
-const { updateStatusMessage, formatUptime } = require('./utils/status');
+const { updateStatusMessage, ensureStatusMessage, formatUptime } = require('./utils/status');
 const { isConfigured: databaseConfigured, getGuildSettings, upsertBotStatus, syncGuilds, markOffline } = require('./utils/database');
 
 const token = process.env.DISCORD_TOKEN || '';
@@ -48,9 +48,13 @@ client.once(Events.ClientReady, async (bot) => {
   for (const guild of client.guilds.cache.values()) {
     try {
       const cfg = await getGuildSettings(guild.id);
-      if (cfg.status?.enabled && cfg.status?.channelId && cfg.status?.messageId) {
-        const mode = cfg.status.mode || 'online';
-        await updateStatusMessage(client, guild.id, mode, mode === 'online' ? { uptime: formatUptime(client.uptime) } : {});
+      if (cfg.status?.enabled && cfg.status?.channelId) {
+        await ensureStatusMessage(client, guild.id);
+        const refreshed = await getGuildSettings(guild.id);
+        if (refreshed.status?.messageId) {
+          const mode = refreshed.status.mode || 'online';
+          await updateStatusMessage(client, guild.id, mode, mode === 'online' ? { uptime: formatUptime(client.uptime) } : {});
+        }
       }
     } catch (err) {
       console.warn('[BWW] Status-Synchronisierung fehlgeschlagen:', err.message);
@@ -61,8 +65,11 @@ client.once(Events.ClientReady, async (bot) => {
     for (const guild of client.guilds.cache.values()) {
       try {
         const cfg = await getGuildSettings(guild.id);
-        if (cfg.status?.enabled && cfg.status?.mode === 'online') {
-          await updateStatusMessage(client, guild.id, 'online', { uptime: formatUptime(client.uptime) });
+        if (cfg.status?.enabled && cfg.status?.channelId) {
+          await ensureStatusMessage(client, guild.id);
+          const refreshed = await getGuildSettings(guild.id);
+          const mode = refreshed.status?.mode || 'online';
+          if (refreshed.status?.messageId) await updateStatusMessage(client, guild.id, mode, mode === 'online' ? { uptime: formatUptime(client.uptime) } : {});
         }
       } catch {}
     }
