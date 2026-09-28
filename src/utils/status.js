@@ -31,6 +31,31 @@ async function createStatusMessage(channel, status = 'online', options = {}) {
   return sent;
 }
 
+async function ensureStatusMessage(client, guildId) {
+  try {
+    const { getGuildSettings, saveGuildSettings } = require('./database');
+    const config = await getGuildSettings(guildId);
+    if (!config.status?.enabled || !config.status?.channelId) return false;
+    const channel = await client.channels.fetch(config.status.channelId).catch(() => null);
+    if (!channel || !channel.isTextBased()) return false;
+
+    let message = null;
+    if (config.status.messageId) {
+      message = await channel.messages.fetch(config.status.messageId).catch(() => null);
+    }
+
+    if (!message) {
+      const created = await createStatusMessage(channel, config.status.mode || 'online');
+      config.status.messageId = created.id;
+      await saveGuildSettings(guildId, config, 'bot');
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 async function updateStatusMessage(client, guildId, status = 'online', options = {}) {
   try {
     const { getGuildSettings } = require('./database');
@@ -61,4 +86,4 @@ function formatUptime(ms) {
   return parts.join(' ');
 }
 
-module.exports = { statusContainer, createStatusMessage, updateStatusMessage, formatUptime };
+module.exports = { statusContainer, createStatusMessage, ensureStatusMessage, updateStatusMessage, formatUptime };
