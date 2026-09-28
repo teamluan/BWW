@@ -1,5 +1,9 @@
 name: Sync BWW to Teufel2211/bww
 
+concurrency:
+  group: bww-mirror-sync
+  cancel-in-progress: true
+
 on:
   push:
     branches:
