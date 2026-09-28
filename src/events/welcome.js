@@ -1,10 +1,11 @@
 const { welcomeComponents } = require('../utils/embeds');
 const { PermissionFlagsBits, MessageFlags } = require('discord.js');
+const { getGuildSettings } = require('../utils/database');
 
 module.exports = async (member) => {
   try {
     if (member.user.bot) return;
-    const config = require('../config').load();
+    const config = await getGuildSettings(member.guild.id);
     if (!config.welcome.enabled || !config.welcome.channelId) return;
     const guild = member.guild;
     let channel = guild.channels.cache.get(config.welcome.channelId);
