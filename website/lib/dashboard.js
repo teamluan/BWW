@@ -92,7 +92,9 @@ function decodeSession(value) {
   const [body, signature] = String(value).split('.');
   if (!body || !signature) return null;
   const expected = sign(body);
-  if (!crypto.timingSafeEqual(Buffer.from(signature), Buffer.from(expected))) return null;
+  const a = Buffer.from(signature);
+  const b = Buffer.from(expected);
+  if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
   const payload = Buffer.from(body, 'base64url').toString('utf8');
   const [id, guildId, expiresAt] = payload.split('|');
   if (!id || !guildId || !expiresAt || Date.now() >= Number(expiresAt)) return null;
