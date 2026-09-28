@@ -1,8 +1,59 @@
+const crypto = require('crypto');
+
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY || '';
 
+const DEFAULT_SETTINGS = Object.freeze({
+  welcome: {
+    enabled: false,
+    channelId: '',
+    title: '',
+    message: 'Willkommen {user} auf dem Server! 🎉'
+  },
+  verify: {
+    enabled: false,
+    channelId: '',
+    message: 'Klicke auf den Button, um dich zu verifizieren.',
+    roleId: ''
+  },
+  ticket: {
+    enabled: false,
+    categoryId: '',
+    roleId: ''
+  },
+  status: {
+    enabled: false,
+    channelId: '',
+    messageId: '',
+    mode: 'online'
+  },
+  permissions: {}
+});
+
+const settingsCache = new Map();
+
 function isConfigured() {
   return Boolean(SUPABASE_URL && SUPABASE_SECRET_KEY);
+}
+
+function cloneDefaults() {
+  return JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
+}
+
+function mergeSettings(value) {
+  const parsed = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+  return {
+    welcome: { ...DEFAULT_SETTINGS.welcome, ...(parsed.welcome || {}) },
+    verify: { ...DEFAULT_SETTINGS.verify, ...(parsed.verify || {}) },
+    ticket: { ...DEFAULT_SETTINGS.ticket, ...(parsed.ticket || {}) },
+    status: { ...DEFAULT_SETTINGS.status, ...(parsed.status || {}) },
+    permissions: parsed.permissions && typeof parsed.permissions === 'object' && !Array.isArray(parsed.permissions)
+      ? Object.fromEntries(Object.entries(parsed.permissions).map(([key, roles]) => [
+          key,
+          Array.isArray(roles) ? roles.filter((id) => typeof id === 'string') : []
+        ]))
+      : {}
+  };
 }
 
 async function supabaseRequest(path, options = {}) {
@@ -23,11 +74,94 @@ async function supabaseRequest(path, options = {}) {
   return response;
 }
 
+async function getGuildSettings(guildId) {
+  if (!guildId) return cloneDefaults();
+  const cached = settingsCache.get(guildId);
+  if (cached && cached.expiresAt > Date.now()) return cached.settings;
+
+  if (!isConfigured()) return cloneDefaults();
+
+  const response = await supabaseRequest(
+    `bww_guild_settings?select=settings&guild_id=eq.${encodeURIComponent(guildId)}&limit=1`,
+    { headers: { Prefer: 'return=representation' } }
+  );
+  const rows = response ? await response.json() : [];
+  const settings = mergeSettings(rows?.[0]?.settings);
+  settingsCache.set(guildId, { settings, expiresAt: Date.now() + 5000 });
+  return settings;
+}
+
+async function saveGuildSettings(guildId, settings, updatedBy = null) {
+  if (!guildId) throw new Error('guildId fehlt.');
+  if (!isConfigured()) throw new Error('Supabase ist nicht konfiguriert.');
+
+  const normalized = mergeSettings(settings);
+  await supabaseRequest('bww_guild_settings?on_conflict=guild_id', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
+    body: JSON.stringify({
+      guild_id: guildId,
+      settings: normalized,
+      updated_by: updatedBy ? String(updatedBy).slice(0, 100) : null,
+      updated_at: new Date().toISOString()
+    })
+  });
+
+  settingsCache.set(guildId, { settings: normalized, expiresAt: Date.now() + 5000 });
+  return normalized;
+}
+
+async function patchGuildSettings(guildId, patch, updatedBy = null) {
+  const current = await getGuildSettings(guildId);
+  const next = mergeSettings({
+    ...current,
+    ...patch,
+    welcome: { ...current.welcome, ...(patch?.welcome || {}) },
+    verify: { ...current.verify, ...(patch?.verify || {}) },
+    ticket: { ...current.ticket, ...(patch?.ticket || {}) },
+    status: { ...current.status, ...(patch?.status || {}) },
+    permissions: { ...current.permissions, ...(patch?.permissions || {}) }
+  });
+  return saveGuildSettings(guildId, next, updatedBy);
+}
+
+function hashDashboardCode(code) {
+  return crypto.createHash('sha256').update(String(code), 'utf8').digest('hex');
+}
+
+async function createDashboardCode(guildId, createdBy = null, ttlMinutes = 60) {
+  if (!guildId) throw new Error('guildId fehlt.');
+  if (!isConfigured()) throw new Error('Supabase ist nicht konfiguriert.');
+
+  const code = crypto.randomBytes(6).toString('base64url').toUpperCase();
+  const codeHash = hashDashboardCode(code);
+  const expiresAt = new Date(Date.now() + Math.max(5, ttlMinutes) * 60 * 1000).toISOString();
+
+  await supabaseRequest(`bww_dashboard_logins?guild_id=eq.${encodeURIComponent(guildId)}&expires_at=gt.${encodeURIComponent(new Date().toISOString())}`, {
+    method: 'PATCH',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({ expires_at: new Date().toISOString() })
+  });
+
+  await supabaseRequest('bww_dashboard_logins', {
+    method: 'POST',
+    headers: { Prefer: 'return=minimal' },
+    body: JSON.stringify({
+      guild_id: guildId,
+      code_hash: codeHash,
+      expires_at: expiresAt,
+      created_by: createdBy ? String(createdBy).slice(0, 100) : null
+    })
+  });
+
+  return { code, expiresAt };
+}
+
 async function upsertBotStatus(client, status = 'online') {
   if (!isConfigured()) return;
   const guilds = [...client.guilds.cache.values()];
   const memberCount = guilds.reduce((sum, guild) => sum + (guild.memberCount || 0), 0);
-  await supabaseRequest('bw_bot_status?on_conflict=id', {
+  await supabaseRequest('bww_bot_status?on_conflict=id', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify({
@@ -55,7 +189,7 @@ async function syncGuilds(client) {
     updated_at: new Date().toISOString()
   }));
   if (!rows.length) return;
-  await supabaseRequest('bw_guilds?on_conflict=guild_id', {
+  await supabaseRequest('bww_guilds?on_conflict=guild_id', {
     method: 'POST',
     headers: { Prefer: 'resolution=merge-duplicates,return=minimal' },
     body: JSON.stringify(rows)
@@ -67,4 +201,14 @@ async function markOffline(client) {
   await upsertBotStatus(client, 'offline');
 }
 
-module.exports = { isConfigured, upsertBotStatus, syncGuilds, markOffline };
+module.exports = {
+  DEFAULT_SETTINGS,
+  isConfigured,
+  getGuildSettings,
+  saveGuildSettings,
+  patchGuildSettings,
+  createDashboardCode,
+  upsertBotStatus,
+  syncGuilds,
+  markOffline
+};
