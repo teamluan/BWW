@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { findDashboardCode, getGuildInfo, markDashboardCodeUsed, setDashboardSession } from '../../../lib/dashboard';
+import { findDashboardCode, getGuildInfo, markDashboardCodeUsed, setDashboardSession } from '../../../../lib/dashboard';
 
 export async function POST(request) {
   try {
