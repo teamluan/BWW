@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDashboardSession, getGuildInfo, getSettings, saveSettings } from '../../../lib/dashboard';
+import { getDashboardSession, getGuildInfo, getSettings, saveSettings } from '../../../../lib/dashboard';
 
 export async function GET() {
   try {
@@ -61,7 +61,10 @@ export async function PATCH(request) {
     const session = await getDashboardSession();
     if (!session) return NextResponse.json({ ok: false, error: 'Nicht angemeldet.' }, { status: 401 });
     const body = await request.json();
-    const saved = await saveSettings(session.guildId, sanitize(body?.settings), 'website');
+    const current = await getSettings(session.guildId);
+    const clean = sanitize(body?.settings);
+    if (current.status?.channelId !== clean.status.channelId) clean.status.messageId = '';
+    const saved = await saveSettings(session.guildId, clean, 'website');
     return NextResponse.json({ ok: true, settings: saved });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error.message || 'Speichern fehlgeschlagen.' }, { status: 500 });
