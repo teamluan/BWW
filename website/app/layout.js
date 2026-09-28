@@ -2,13 +2,13 @@ import './globals.css';
 
 export const metadata = {
   title: 'BWW — Command Center',
-  description: 'Live Dashboard für den BWW Discord Bot und seine verbundenen Server.'
+  description: 'Geschütztes Admin-Dashboard für den BWW Discord Bot.'
 };
 
 export const viewport = {
   width: 'device-width',
   initialScale: 1,
-  themeColor: '#07090d'
+  themeColor: '#06080d'
 };
 
 export default function RootLayout({ children }) {
