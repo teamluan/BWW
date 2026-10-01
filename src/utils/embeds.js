@@ -248,7 +248,9 @@ function buildComponentsV2(data = {}) {
 
   if (!renderedComponents) {
     throw new Error('Components-V2-Nachricht enthält keine gültigen Inhalte.');
-  }  return container;
+  }
+
+  return container;
 }
 
 function embedV2(options = {}) {
