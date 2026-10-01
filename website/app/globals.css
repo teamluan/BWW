@@ -1193,3 +1193,21 @@ code {
   .embed-form-grid { grid-template-columns: 1fr; }
   .embed-actions { flex-direction: column; }
 }
+
+.send-v2-button {
+  min-height: 48px;
+  padding: 0 15px;
+  border: 1px solid rgba(66,229,154,.24);
+  border-radius: 11px;
+  background: rgba(66,229,154,.07);
+  color: var(--green);
+  cursor: pointer;
+  font-size: 10px;
+  font-weight: 900;
+}
+.send-v2-button:hover { background: rgba(66,229,154,.11); }
+.send-v2-button:disabled { opacity: .5; cursor: not-allowed; }
+
+@media (max-width: 560px) {
+  .send-v2-button { width: 100%; }
+}
