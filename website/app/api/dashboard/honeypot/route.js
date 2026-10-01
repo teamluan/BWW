@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getDashboardSession, getGuildInfo, getSettings, getHoneypotEvents } from '../../../../lib/dashboard';
+import { getDashboardSession, getGuildInfo, getSettings, getHoneypotEvents, saveSettings } from '../../../../lib/dashboard';
 
 export async function GET() {
   try {
@@ -46,11 +46,7 @@ export async function PATCH(request) {
     const body = await request.json();
     const current = await getSettings(session.guildId);
     const honeypot = sanitizeHoneypot(body?.honeypot);
-    const savedSettings = await (await import('../../../../lib/dashboard')).saveSettings(
-      session.guildId,
-      { ...current, honeypot },
-      'website'
-    );
+    const savedSettings = await saveSettings(session.guildId, { ...current, honeypot }, 'website');
     return NextResponse.json({ ok: true, settings: savedSettings.honeypot });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error.message || 'Honeypot konnte nicht gespeichert werden.' }, { status: 500 });
