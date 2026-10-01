@@ -29,15 +29,77 @@ module.exports = async (interaction, client) => {
   if ((interaction.isButton() && (interaction.customId.startsWith('bww_embed_btn_') || interaction.customId.startsWith('bww_embed_'))) || (interaction.isAnySelectMenu?.() && interaction.customId.startsWith('bww_embed_select_'))) {
     const resolved = await findEmbedInteraction(interaction.guildId, interaction.customId);
     if (resolved?.component) {
-      const responseText = String(resolved.component.response || '').trim();
+      const component = resolved.component;
+      const responseText = String(component.response || '').trim();
       const values = interaction.isAnySelectMenu?.() ? (interaction.values || []).join(', ') : '';
-      const text = (responseText || (interaction.isButton() ? '✅ Aktion ausgeführt.' : '✅ Auswahl gespeichert.'))
+      const action = component.action && typeof component.action === 'object' ? component.action : {};
+      const actionType = String(action.type || 'none');
+
+      let defaultText = interaction.isButton() ? '✅ Aktion ausgeführt.' : '✅ Auswahl gespeichert.';
+
+      if (actionType !== 'none') {
+        if (!interaction.guild || !interaction.member?.roles?.add || !interaction.member?.roles?.remove) {
+          return interaction.reply({ content: '❌ Diese Aktion ist nur auf einem Server verfügbar.', ...EPHEMERAL });
+        }
+
+        const roleId = String(action.roleId || '').replace(/[0-9]/g, (m) => m).match(/[0-9]+/g)?.join('') || '';
+        if (!roleId) {
+          return interaction.reply({ content: '❌ Für diese V2-Aktion ist keine gültige Rollen-ID hinterlegt.', ...EPHEMERAL });
+        }
+
+        const role = interaction.guild.roles.cache.get(roleId) || await interaction.guild.roles.fetch(roleId).catch(() => null);
+        if (!role) {
+          return interaction.reply({ content: '❌ Die konfigurierte Rolle wurde nicht gefunden.', ...EPHEMERAL });
+        }
+        if (role.managed || !role.editable) {
+          return interaction.reply({ content: '❌ Ich kann diese Rolle nicht verwalten. Die Bot-Rolle muss über der Zielrolle stehen.', ...EPHEMERAL });
+        }
+
+        await interaction.deferReply({ flags: EPHEMERAL_V2 });
+
+        try {
+          if (actionType === 'role_add') {
+            if (interaction.member.roles.cache.has(role.id)) {
+              defaultText = 'ℹ️ Du hast ' + role + ' bereits.';
+            } else {
+              await interaction.member.roles.add(role, 'BWW Embed V2 Aktion');
+              defaultText = '✅ ' + role + ' wurde dir hinzugefügt.';
+            }
+          } else if (actionType === 'role_remove') {
+            if (!interaction.member.roles.cache.has(role.id)) {
+              defaultText = 'ℹ️ Du hast ' + role + ' nicht.';
+            } else {
+              await interaction.member.roles.remove(role, 'BWW Embed V2 Aktion');
+              defaultText = '✅ ' + role + ' wurde dir entfernt.';
+            }
+          } else if (actionType === 'role_toggle') {
+            if (interaction.member.roles.cache.has(role.id)) {
+              await interaction.member.roles.remove(role, 'BWW Embed V2 Aktion');
+              defaultText = '✅ ' + role + ' wurde entfernt.';
+            } else {
+              await interaction.member.roles.add(role, 'BWW Embed V2 Aktion');
+              defaultText = '✅ ' + role + ' wurde hinzugefügt.';
+            }
+          } else {
+            defaultText = '⚠️ Unbekannte V2-Aktion. Prüfe die Vorlage im Dashboard.';
+          }
+        } catch (error) {
+          console.error('[BWW] Embed-V2-Aktion fehlgeschlagen:', error.message);
+          defaultText = '❌ Die konfigurierte V2-Aktion konnte nicht ausgeführt werden.';
+        }
+      }
+
+      const text = (responseText || defaultText)
         .replaceAll('{values}', values)
         .replaceAll('{user}', `<@${interaction.user.id}>`)
         .replaceAll('{username}', interaction.user.username)
         .replaceAll('{server}', interaction.guild?.name || '');
       const container = new ContainerBuilder().setAccentColor(0x2F3136);
       container.addTextDisplayComponents(new TextDisplayBuilder().setContent(text.slice(0, 4000)));
+
+      if (actionType !== 'none' && interaction.deferred) {
+        return interaction.editReply({ components: [container], flags: EPHEMERAL_V2, allowedMentions: { parse: [] } });
+      }
       return interaction.reply({ components: [container], flags: EPHEMERAL_V2, allowedMentions: { parse: [] } });
     }
   }
