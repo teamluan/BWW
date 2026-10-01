@@ -114,3 +114,26 @@ const commands = [
     { name: 'admins-ignorieren', description: 'Administratoren ausnehmen', type: 5, required: false },
     { name: 'ausnahme-rolle', description: 'Optionale Rolle, die ausgenommen wird', type: 8, required: false }
   ]},
+  { name: 'setup-permission', description: 'Rollenberechtigung f\u00FCr Commands setzen.', options: [
+    { name: 'command', description: 'Command', type: 3, required: true, choices: [
+      { name: 'nachricht', value: 'nachricht' }, { name: 'embed', value: 'embed' }, { name: 'setup', value: 'setup' }, { name: 'verify', value: 'verify' },
+      { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'panel-create', value: 'panel-create' }, { name: 'panel-send', value: 'panel-send' }, { name: 'panel-delete', value: 'panel-delete' }, { name: 'panel-list', value: 'panel-list' }, { name: 'panel-add-button', value: 'panel-add-button' }, { name: 'umfrage', value: 'umfrage' }, { name: 'setup-status', value: 'setup-status' }, { name: 'wartung', value: 'wartung' }, { name: 'restart', value: 'restart' },
+      { name: 'kick', value: 'kick' }, { name: 'ban', value: 'ban' }, { name: 'unban', value: 'unban' }, { name: 'timeout', value: 'timeout' },
+      { name: 'giverole', value: 'giverole' }, { name: 'removerole', value: 'removerole' }
+    ]},
+    { name: 'role', description: 'Rolle', type: 8, required: true },
+    { name: 'erlauben', description: 'true = erlauben, false = entfernen', type: 5, required: true }
+  ]}
+];
+
+function isAllowed(interaction, config) {
+  if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return true;
+  const key = interaction.commandName;
+  if (!key) return false;
+  const roles = config.permissions[key] || [];
+  const memberRoles = interaction.member?.roles?.cache;
+  if (!memberRoles) return false;
+  return roles.some(id => memberRoles.has(id));
+}
+
+module.exports = { commands, isAllowed };
