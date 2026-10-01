@@ -7,10 +7,9 @@ export async function POST(request) {
     const record = await findDashboardCode(body?.code);
     if (!record) return NextResponse.json({ ok: false, error: 'Ungültiger oder abgelaufener Dashboard-Code.' }, { status: 401 });
 
-    const expiresAt = new Date(record.expires_at).getTime();
     const consumed = await consumeDashboardCode(record.id);
     if (!consumed) return NextResponse.json({ ok: false, error: 'Der Dashboard-Code wurde bereits verwendet.' }, { status: 409 });
-    await setDashboardSession(record.id, record.guild_id, expiresAt);
+    await setDashboardSession(record.id, record.guild_id);
 
     return NextResponse.json({ ok: true, guild: await getGuildInfo(record.guild_id) });
   } catch (error) {
