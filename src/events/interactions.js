@@ -185,6 +185,34 @@ module.exports = async (interaction, client) => {
     if (command === 'setup-welcome') { config.welcome = { enabled: true, channelId: interaction.options.getChannel('channel').id, title: interaction.options.getString('title') || '', message: interaction.options.getString('text', true) }; await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: '✅ Welcome-System gespeichert.', ...EPHEMERAL }); }
     if (command === 'setup-verify') { config.verify = { enabled: true, channelId: interaction.options.getChannel('channel').id, roleId: interaction.options.getRole('role').id, message: interaction.options.getString('text', true) }; await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: '✅ Verify-System gespeichert.', ...EPHEMERAL }); }
     if (command === 'setup-ticket') { config.ticket = { enabled: true, categoryId: interaction.options.getChannel('kategorie').id, roleId: interaction.options.getRole('rolle').id }; await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: '✅ Ticket-System gespeichert.', ...EPHEMERAL }); }
+    if (command === 'setup-honeypot') {
+      const active = interaction.options.getBoolean('aktiv', true);
+      const channel = interaction.options.getChannel('channel');
+      const logChannel = interaction.options.getChannel('log-channel');
+      if (!active) {
+        config.honeypot = { ...(config.honeypot || {}), enabled: false };
+        await saveGuildSettings(interaction.guildId, config, interaction.user.id);
+        return interaction.reply({ content: '✅ Honeypot deaktiviert.', ...EPHEMERAL });
+      }
+      if (!channel) return interaction.reply({ content: '❌ Für einen aktiven Honeypot musst du einen Text-Channel angeben.', ...EPHEMERAL });
+      const punishment = interaction.options.getString('bestrafung') || config.honeypot?.punishment || 'none';
+      const timeoutMinutes = Math.max(1, Math.min(40320, interaction.options.getInteger('timeout') || config.honeypot?.timeoutMinutes || 10));
+      const deleteMessage = interaction.options.getBoolean('nachricht-loeschen') ?? config.honeypot?.deleteMessage ?? true;
+      const ignoreAdmins = interaction.options.getBoolean('admins-ignorieren') ?? config.honeypot?.ignoreAdmins ?? true;
+      const exemptRole = interaction.options.getRole('ausnahme-rolle');
+      config.honeypot = {
+        enabled: true,
+        channelId: channel.id,
+        logChannelId: logChannel?.id || config.honeypot?.logChannelId || '',
+        punishment: ['none', 'kick', 'ban', 'timeout'].includes(punishment) ? punishment : 'none',
+        timeoutMinutes,
+        deleteMessage,
+        ignoreAdmins,
+        exemptRoleIds: exemptRole ? [exemptRole.id] : (config.honeypot?.exemptRoleIds || [])
+      };
+      await saveGuildSettings(interaction.guildId, config, interaction.user.id);
+      return interaction.reply({ content: '✅ Honeypot gespeichert und aktiviert in ' + channel + '.', ...EPHEMERAL });
+    }
     if (command === 'setup-status') {
       const channel = interaction.options.getChannel('channel');
       try {
