@@ -43,7 +43,7 @@ function blankComponent(type) {
   if (type === 'media_gallery') return { type, items: [{ url: '', description: '', spoiler: false }] };
   if (type === 'file') return { type, url: '', filename: 'datei.pdf', description: '', spoiler: false };
   if (type === 'buttons') return { type, buttons: [{ label: 'Button', style: 'primary', customId: id('bww_embed_btn_'), url: '', emoji: '', disabled: false, response: '' }] };
-  return { type: 'select', kind: 'string', customId: id('bww_embed_select_'), placeholder: 'Bitte auswählen…', minValues: 1, maxValues: 1, disabled: false, response: '', options: [{ label: 'Option 1', value: 'option_1', description: '', default: false }] };
+  return { type: 'select', kind: 'string', customId: id('bww_embed_select_'), placeholder: 'Bitte auswählen…', minValues: 1, maxValues: 1, disabled: false, response: '', options: [{ label: 'Option 1', value: 'option_1', description: '', emoji: '', response: '', default: false }] };
 }
 
 function migrateLegacy(data) {
@@ -194,8 +194,11 @@ Dein Text mit **Markdown**…" maxLength={4000} /></Field>;
               <Field label="Beschreibung"><input value={option.description || ''} onChange={(e) => update({ options: options.map((current, i) => i === index ? { ...current, description: e.target.value } : current) })} maxLength={100} /></Field>
               <Field label="Emoji"><input value={option.emoji || ''} onChange={(e) => update({ options: options.map((current, i) => i === index ? { ...current, emoji: e.target.value } : current) })} maxLength={100} placeholder="Optional" /></Field>
             </div>
+            <Field label="Nachricht bei Auswahl" hint="{user}, {username}, {server} und {values} sind verfügbar. Leer = allgemeine Select-Antwort verwenden.">
+              <textarea rows={3} value={option.response || ''} onChange={(e) => update({ options: options.map((current, i) => i === index ? { ...current, response: e.target.value } : current) })} maxLength={2000} placeholder="z. B. ✅ Du hast Ausbildung gewählt, {user}!" />
+            </Field>
           </div>)}
-          {options.length < 25 && <button className="add-small-button" onClick={() => update({ options: [...options, { label: 'Neue Option', value: 'new_option', description: '', default: false }] })}>+ Option</button>}
+          {options.length < 25 && <button className="add-small-button" onClick={() => update({ options: [...options, { label: 'Neue Option', value: 'new_option', description: '', emoji: '', response: '', default: false }] })}>+ Option</button>}
         </div>}
       </div>
     );
