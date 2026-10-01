@@ -52,6 +52,16 @@ function sanitize(input) {
       messageId: cleanId(source.status?.messageId),
       mode: ['online', 'offline', 'maintenance'].includes(source.status?.mode) ? source.status.mode : 'online'
     },
+    honeypot: {
+      enabled: Boolean(source.honeypot?.enabled),
+      channelId: cleanId(source.honeypot?.channelId),
+      logChannelId: cleanId(source.honeypot?.logChannelId),
+      punishment: ['none', 'kick', 'ban', 'timeout'].includes(source.honeypot?.punishment) ? source.honeypot.punishment : 'none',
+      timeoutMinutes: Math.max(1, Math.min(40320, Number(source.honeypot?.timeoutMinutes) || 10)),
+      deleteMessage: source.honeypot?.deleteMessage !== false,
+      ignoreAdmins: source.honeypot?.ignoreAdmins !== false,
+      exemptRoleIds: Array.isArray(source.honeypot?.exemptRoleIds) ? source.honeypot.exemptRoleIds.map(cleanId).filter(Boolean).slice(0, 25) : []
+    },
     permissions
   };
 }
