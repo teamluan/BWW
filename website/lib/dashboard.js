@@ -109,13 +109,6 @@ function decodeSession(value) {
     path: '/',
     maxAge
   });
-} encodeSession(`${id}|${guildId}|${Number(expiresAt)}`), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge
-  });
 }
 
 export async function clearDashboardSession() {
