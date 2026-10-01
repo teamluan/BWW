@@ -101,6 +101,7 @@ function sanitizeSelect(input) {
       value: text(option?.value || 'option_' + (index + 1), 100),
       description: text(option?.description, 100),
       emoji: text(option?.emoji, 100),
+      response: text(option?.response, 2000),
       default: Boolean(option?.default),
     })).filter((option) => option.label && option.value);
   }
