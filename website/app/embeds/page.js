@@ -20,6 +20,7 @@ export default function EmbedsPage() {
   const [templates, setTemplates] = useState([]);
   const [data, setData] = useState(EMPTY);
   const [name, setName] = useState('');
+  const [channelId, setChannelId] = useState('');
   const [selected, setSelected] = useState('');
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -51,7 +52,7 @@ export default function EmbedsPage() {
 
   const previewColor = useMemo(() => safeColor(data.color), [data.color]);
 
-  async function save() {
+  async function save(send = false) {
     if (!name.trim()) {
       setError('Bitte einen Namen für die Vorlage eingeben.');
       return;
@@ -63,13 +64,13 @@ export default function EmbedsPage() {
       const response = await fetch('/api/dashboard/embeds', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, data }),
+        body: JSON.stringify({ name, data, send, channelId }),
       });
       const json = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(json.error || 'Speichern fehlgeschlagen.');
       await load();
       setSelected(json.template?.id || '');
-      setMessage('V2-Embed-Vorlage gespeichert.');
+      setMessage(send ? 'V2-Embed gespeichert und an den Bot zum Senden übergeben.' : 'V2-Embed-Vorlage gespeichert.');
     } catch (err) {
       setError(err.message || 'Speichern fehlgeschlagen.');
     } finally {
@@ -166,7 +167,8 @@ export default function EmbedsPage() {
                 </div>
                 <label><span>Thumbnail URL</span><input value={data.thumbnail} onChange={(e) => patch('thumbnail', e.target.value)} placeholder="https://…" /></label>
                 <label><span>Bild URL</span><input value={data.image} onChange={(e) => patch('image', e.target.value)} placeholder="https://…" /></label>
-                <div className="embed-actions"><button className="button-primary" onClick={save} disabled={busy}>{busy ? 'Speichere…' : 'V2-Vorlage speichern'}</button><button className="ghost-button" onClick={() => { setName(''); setData(EMPTY); setSelected(''); setMessage(''); setError(''); }}>Neu</button></div>
+                <label><span>Discord Channel-ID zum Senden</span><input value={channelId} onChange={(e) => setChannelId(e.target.value.replace(/\\D/g, '').slice(0, 32))} placeholder="Nur zum direkten Senden" /></label>
+                <div className="embed-actions"><button className="button-primary" onClick={() => save(false)} disabled={busy}>{busy ? 'Speichere…' : 'V2-Vorlage speichern'}</button><button className="send-v2-button" onClick={() => save(true)} disabled={busy || !channelId}>{busy ? 'Sende…' : '↗ In Discord senden'}</button><button className="ghost-button" onClick={() => { setName(''); setChannelId(''); setData(EMPTY); setSelected(''); setMessage(''); setError(''); }}>Neu</button></div>
               </article>
             </div>
 
