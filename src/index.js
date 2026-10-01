@@ -2,10 +2,12 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Partials, REST, Routes, Events, MessageFlags } = require('discord.js');
 const { commands } = require('./commands');
 const welcome = require('./events/welcome');
+const { embedV2 } = require('./utils/embeds');
 const interactions = require('./events/interactions');
 const { startGiveawayLoop } = require('./utils/giveaway');
 const { updateStatusMessage, ensureStatusMessage, formatUptime } = require('./utils/status');
-const { isConfigured: databaseConfigured, getGuildSettings, upsertBotStatus, syncGuilds, markOffline } = require('./utils/database');
+const { isConfigured: databaseConfigured, getGuildSettings, upsertBotStatus, syncGuilds, markOffline, getPendingDashboardActions, claimDashboardAction, completeDashboardAction, failDashboardAction } = require('./utils/database');
+c
 
 const token = process.env.DISCORD_TOKEN || '';
 if (!token) {
@@ -18,6 +20,36 @@ const client = new Client({
   intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
   partials: [Partials.GuildMember],
 });
+
+
+async function processDashboardActions(bot) {
+  if (!databaseConfigured()) return;
+  const actions = await getPendingDashboardActions(10);
+  for (const action of actions) {
+    const claimed = await claimDashboardAction(action.id);
+    if (!claimed) continue;
+    try {
+      if (claimed.action !== 'send_embed_v2') throw new Error('Unbekannte Dashboard-Aktion.');
+      const payload = claimed.payload || {};
+      const guild = bot.guilds.cache.get(claimed.guild_id);
+      if (!guild) throw new Error('Discord-Server ist beim Bot nicht verbunden.');
+      const channelId = String(payload.channelId || '').replace(/\D/g, '');
+      if (!channelId) throw new Error('Keine gültige Channel-ID.');
+      const channel = guild.channels.cache.get(channelId) || await guild.channels.fetch(channelId).catch(() => null);
+      if (!channel?.isTextBased()) throw new Error('Discord-Channel nicht gefunden oder nicht textbasiert.');
+      const container = embedV2(payload.data || {});
+      await channel.send({
+        components: [container],
+        flags: MessageFlags.IsComponentsV2,
+        allowedMentions: { parse: [] }
+      });
+      await completeDashboardAction(claimed.id);
+    } catch (error) {
+      console.error('[BWW] Dashboard-Aktion fehlgeschlagen:', error.message);
+      await failDashboardAction(claimed.id, error.message).catch(() => {});
+    }
+  }
+}
 
 async function syncDatabase(bot, status = 'online') {
   if (!databaseConfigured()) return;
@@ -44,6 +76,8 @@ client.once(Events.ClientReady, async (bot) => {
   await syncDatabase(bot, 'online');
   setInterval(() => syncDatabase(bot, 'online'), 30 * 1000);
   startGiveawayLoop(client);
+  processDashboardActions(bot).catch(() => {});
+  setInterval(() => processDashboardActions(bot).catch(() => {}), 5000);
 
   for (const guild of client.guilds.cache.values()) {
     try {
