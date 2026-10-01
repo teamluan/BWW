@@ -32,28 +32,39 @@ function normalizeColor(value, fallback = DEFAULT_COLOR) {
 
 function embedV2(options = {}) {
   const container = new ContainerBuilder().setAccentColor(normalizeColor(options.color));
-
   const title = String(options.title || '').trim().slice(0, 256);
   const description = String(options.description || '').trim().slice(0, 4000);
   const footer = String(options.footer || '').trim().slice(0, 1000);
   const image = String(options.image || '').trim();
   const thumbnail = String(options.thumbnail || '').trim();
 
-  if (title) {
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## ${title}`));
-  }
-
-  if (description) {
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(description));
-  }
-
-  if (thumbnail) {
+  if (thumbnail && (title || description)) {
     try {
-      const section = new SectionBuilder()
-        .addTextDisplayComponents(new TextDisplayBuilder().setContent(description || '\u200b'))
-        .setThumbnailAccessory(new ThumbnailBuilder().setURL(thumbnail));
-      if (title || description) container.addSectionComponents(section);
-    } catch {}
+      container.addSectionComponents(
+        new SectionBuilder()
+          .addTextDisplayComponents(
+            new TextDisplayBuilder().setContent(
+              [title && '## ' + title, description].filter(Boolean).join('\\n')
+            )
+          )
+          .setThumbnailAccessory(new ThumbnailBuilder().setURL(thumbnail))
+      );
+    } catch {
+      if (title) container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## ' + title));
+      if (description) container.addTextDisplayComponents(new TextDisplayBuilder().setContent(description));
+    }
+  } else {
+    if (title) container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## ' + title));
+    if (description) container.addTextDisplayComponents(new TextDisplayBuilder().setContent(description));
+    if (thumbnail) {
+      try {
+        container.addSectionComponents(
+          new SectionBuilder()
+            .addTextDisplayComponents(new TextDisplayBuilder().setContent('Thumbnail'))
+            .setThumbnailAccessory(new ThumbnailBuilder().setURL(thumbnail))
+        );
+      } catch {}
+    }
   }
 
   if (image) {
@@ -62,13 +73,7 @@ function embedV2(options = {}) {
         new MediaGalleryItemBuilder().setURL(image).setDescription(title || 'Bild')
       );
       container.addMediaGalleryComponents(gallery);
-    } catch {
-      if (description) {
-        container.addTextDisplayComponents(
-          new TextDisplayBuilder().setContent(image)
-        );
-      }
-    }
+    } catch {}
   }
 
   if (footer) {
@@ -76,19 +81,18 @@ function embedV2(options = {}) {
       new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(false)
     );
     container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent(`-# ${footer}`)
+      new TextDisplayBuilder().setContent('-# ' + footer)
     );
   }
 
   if (!title && !description && !image && !thumbnail && !footer) {
     container.addTextDisplayComponents(
-      new TextDisplayBuilder().setContent('## BWW Embed V2\nKeine Inhalte angegeben.')
+      new TextDisplayBuilder().setContent('## BWW Embed V2\\nKeine Inhalte angegeben.')
     );
   }
 
   return container;
 }
-
 function welcomeComponents(message, member, options = {}) {
   const text = resolveWelcomeText(message, member);
   const title = options.title ? resolveWelcomeText(options.title, member) : null;
