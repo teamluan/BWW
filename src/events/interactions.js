@@ -1,6 +1,6 @@
 const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const { isAllowed } = require('../commands');
-const { getGuildSettings, saveGuildSettings, createDashboardCode } = require('../utils/database');
+const { getGuildSettings, saveGuildSettings, createDashboardCode, findEmbedInteraction } = require('../utils/database');
 const { embedV2, verifyComponents } = require('../utils/embeds');
 const { ticketContainer, createTicket, TICKET_REASONS } = require('../utils/tickets');
 const { loadGiveaways, saveGiveaways, giveawayContainer, startGiveaway, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage } = require('../utils/giveaway');
@@ -26,6 +26,21 @@ function canCloseTicket(interaction, config) {
 module.exports = async (interaction, client) => {
   try {
   const config = await getGuildSettings(interaction.guildId);
+  if ((interaction.isButton() && (interaction.customId.startsWith('bww_embed_btn_') || interaction.customId.startsWith('bww_embed_'))) || (interaction.isAnySelectMenu?.() && interaction.customId.startsWith('bww_embed_select_'))) {
+    const resolved = await findEmbedInteraction(interaction.guildId, interaction.customId);
+    if (resolved?.component) {
+      const responseText = String(resolved.component.response || '').trim();
+      const values = interaction.isAnySelectMenu?.() ? (interaction.values || []).join(', ') : '';
+      const text = (responseText || (interaction.isButton() ? '✅ Aktion ausgeführt.' : '✅ Auswahl gespeichert.'))
+        .replaceAll('{values}', values)
+        .replaceAll('{user}', `<@${interaction.user.id}>`)
+        .replaceAll('{username}', interaction.user.username)
+        .replaceAll('{server}', interaction.guild?.name || '');
+      const container = new ContainerBuilder().setAccentColor(0x2F3136);
+      container.addTextDisplayComponents(new TextDisplayBuilder().setContent(text.slice(0, 4000)));
+      return interaction.reply({ components: [container], flags: EPHEMERAL_V2, allowedMentions: { parse: [] } });
+    }
+  }
   if (interaction.isButton() && interaction.customId === 'bww_verify') {
     if (!config.verify.roleId) return interaction.reply({ content: '❌ Keine Verifizierungsrolle eingerichtet.', ...EPHEMERAL });
     const role = interaction.guild.roles.cache.get(config.verify.roleId) || await interaction.guild.roles.fetch(config.verify.roleId).catch(() => null);
