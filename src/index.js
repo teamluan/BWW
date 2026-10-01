@@ -6,6 +6,7 @@ const { prepareEmbedV2 } = require('./utils/embeds');
 const interactions = require('./events/interactions');
 const { startGiveawayLoop } = require('./utils/giveaway');
 const { updateStatusMessage, ensureStatusMessage, formatUptime } = require('./utils/status');
+const { honeypot } = require('./utils/honeypot');
 const { isConfigured: databaseConfigured, getGuildSettings, upsertBotStatus, syncGuilds, markOffline, getPendingDashboardActions, claimDashboardAction, completeDashboardAction, failDashboardAction } = require('./utils/database');
 
 const token = process.env.DISCORD_TOKEN || '';
@@ -16,7 +17,7 @@ if (!token) {
 console.log('[BWW] Token geladen.');
 
 const client = new Client({
-  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers],
+  intents: [GatewayIntentBits.Guilds, GatewayIntentBits.GuildMembers, GatewayIntentBits.GuildMessages],
   partials: [Partials.GuildMember],
 });
 
@@ -115,6 +116,13 @@ client.on(Events.GuildDelete, () => syncDatabase(client, 'online'));
 
 client.on(Events.GuildMemberAdd, (member) => {
   Promise.resolve(welcome(member)).catch((err) => console.error('Welcome Fehler:', err.message));
+});
+
+client.on(Events.MessageCreate, (message) => {
+  if (!message.guild) return;
+  getGuildSettings(message.guild.id)
+    .then((config) => honeypot(message, config.honeypot))
+    .catch((err) => console.error('[BWW] Honeypot Fehler:', err.message));
 });
 
 client.on(Events.InteractionCreate, (interaction) => {
