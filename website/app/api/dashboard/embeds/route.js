@@ -12,6 +12,7 @@ const DEFAULT_DATA = {
   title: '',
   description: '',
   color: '5865F2',
+  spoiler: false,
   thumbnail: '',
   image: '',
   footer: '',
@@ -36,6 +37,15 @@ function url(value) {
 function customId(value, prefix) {
   const raw = text(value, 90).replace(/[^a-zA-Z0-9:_-]/g, '');
   return (raw || prefix + crypto.randomUUID().replaceAll('-', '')).slice(0, 100);
+}
+
+function filename(value) {
+  const clean = String(value ?? '')
+    .trim()
+    .replace(/[\\/:*?"<>|\x00-\x1F]/g, '-')
+    .replace(/\s+/g, ' ')
+    .slice(0, 100);
+  return clean || 'bww-file.bin';
 }
 
 function sanitizeButton(input, index = 0) {
@@ -87,6 +97,15 @@ function sanitizeComponent(input, index) {
   }
   if (source.type === 'separator') {
     return { type: 'separator', divider: source.divider !== false, spacing: source.spacing === 'large' ? 'large' : 'small' };
+  }
+  if (source.type === 'file') {
+    return {
+      type: 'file',
+      url: url(source.url),
+      filename: filename(source.filename),
+      description: text(source.description, 1024),
+      spoiler: Boolean(source.spoiler),
+    };
   }
   if (source.type === 'media_gallery') {
     return {
@@ -164,6 +183,7 @@ function sanitizeData(input) {
     .filter((component) => {
       if (component.type === 'text') return Boolean(component.content);
       if (component.type === 'media_gallery') return component.items.length > 0;
+      if (component.type === 'file') return Boolean(component.url);
       if (component.type === 'section') return component.texts.length > 0;
       if (component.type === 'buttons') return component.buttons.length > 0;
       if (component.type === 'select') return component.kind !== 'string' || component.options.length > 0;
@@ -175,6 +195,7 @@ function sanitizeData(input) {
     title: text(source.title, 256),
     description: text(source.description, 4000),
     color: /^[0-9A-F]{6}$/.test(rawColor) ? rawColor : DEFAULT_DATA.color,
+    spoiler: Boolean(source.spoiler),
     thumbnail: url(source.thumbnail),
     image: url(source.image),
     footer: text(source.footer, 1000),
@@ -213,13 +234,14 @@ export async function POST(request) {
       return NextResponse.json({ ok: false, error: 'Die V2-Nachricht enthält noch keine Inhalte.' }, { status: 400 });
     }
 
+    const template = await saveEmbedTemplate(session.guildId, name, cleanData, 'website');
+
     if (body?.send === true) {
       const channelId = String(body?.channelId || '').replace(/\D/g, '').slice(0, 32);
       if (!channelId) return NextResponse.json({ ok: false, error: 'Für das Senden wird eine Discord Channel-ID benötigt.' }, { status: 400 });
-      await queueDashboardAction(session.guildId, 'send_embed_v2', { channelId, data: cleanData }, 'website');
+      await queueDashboardAction(session.guildId, 'send_embed_v2', { channelId, data: cleanData, templateId: template.id }, 'website');
     }
 
-    const template = await saveEmbedTemplate(session.guildId, name, cleanData, 'website');
     return NextResponse.json({ ok: true, template, queued: body?.send === true });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error.message || 'Embed konnte nicht gespeichert werden.' }, { status: 500 });
