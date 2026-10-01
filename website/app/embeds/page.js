@@ -1,18 +1,17 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import DashboardShell from '../../components/dashboard-shell';
 
-const EMPTY = {
-  title: '',
-  description: '',
-  color: '5865F2',
-  thumbnail: '',
-  image: '',
-  footer: ''
-};
+const EMPTY = { title: '', description: '', color: '5865F2', thumbnail: '', image: '', footer: '' };
 
 function safeColor(value) {
-  return /^[0-9a-fA-F]{6}$/.test(value.replace('#', '')) ? '#' + value.replace('#', '') : '#5865F2';
+  const normalized = String(value || '').replace('#', '');
+  return /^[0-9a-fA-F]{6}$/.test(normalized) ? '#' + normalized : '#5865F2';
+}
+
+function BuilderField({ label, children, hint }) {
+  return <label className="form-field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>;
 }
 
 export default function EmbedsPage() {
@@ -25,6 +24,7 @@ export default function EmbedsPage() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const previewColor = useMemo(() => safeColor(data.color), [data.color]);
 
   async function load() {
     const response = await fetch('/api/dashboard/embeds', { cache: 'no-store' });
@@ -50,11 +50,18 @@ export default function EmbedsPage() {
     setMessage('');
   }
 
-  const previewColor = useMemo(() => safeColor(data.color), [data.color]);
+  function reset() {
+    setName('');
+    setChannelId('');
+    setData(EMPTY);
+    setSelected('');
+    setError('');
+    setMessage('');
+  }
 
   async function save(send = false) {
     if (!name.trim()) {
-      setError('Bitte einen Namen für die Vorlage eingeben.');
+      setError('Bitte einen Vorlagennamen eingeben.');
       return;
     }
     setBusy(true);
@@ -70,7 +77,7 @@ export default function EmbedsPage() {
       if (!response.ok) throw new Error(json.error || 'Speichern fehlgeschlagen.');
       await load();
       setSelected(json.template?.id || '');
-      setMessage(send ? 'V2-Embed gespeichert und an den Bot zum Senden übergeben.' : 'V2-Embed-Vorlage gespeichert.');
+      setMessage(send ? 'Vorlage gespeichert und an den Bot übergeben.' : 'Vorlage gespeichert.');
     } catch (err) {
       setError(err.message || 'Speichern fehlgeschlagen.');
     } finally {
@@ -79,18 +86,13 @@ export default function EmbedsPage() {
   }
 
   async function remove(id) {
-    if (!window.confirm('Diese Embed-Vorlage wirklich löschen?')) return;
-    setError('');
+    if (!window.confirm('Diese Vorlage wirklich löschen?')) return;
     try {
       const response = await fetch('/api/dashboard/embeds?id=' + encodeURIComponent(id), { method: 'DELETE' });
       const json = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(json.error || 'Löschen fehlgeschlagen.');
       setTemplates((current) => current.filter((item) => item.id !== id));
-      if (selected === id) {
-        setSelected('');
-        setName('');
-        setData(EMPTY);
-      }
+      if (selected === id) reset();
       setMessage('Vorlage gelöscht.');
     } catch (err) {
       setError(err.message || 'Löschen fehlgeschlagen.');
@@ -101,108 +103,90 @@ export default function EmbedsPage() {
     setSelected(template.id);
     setName(template.name);
     setData({ ...EMPTY, ...(template.data || {}) });
-    setError('');
     setMessage('Vorlage geladen.');
+    setError('');
   }
 
-  async function logout() {
-    await fetch('/api/dashboard/logout', { method: 'POST' });
-    window.location.replace('/');
-  }
-
-  if (mode === 'loading') {
-    return <main className="dashboard-app"><div className="page-loading"><span className="brand-icon">B</span><span>Embed-System wird geladen…</span></div></main>;
-  }
-
-  if (mode === 'error') {
-    return <main className="dashboard-app"><div className="error-panel"><span className="eyebrow">BWW / EMBEDS</span><h1>Embed-System nicht verfügbar</h1><p>{error}</p><a className="button-secondary" href="/dashboard">Zur Übersicht</a></div></main>;
-  }
+  if (mode === 'loading') return <main className="dashboard-app"><div className="page-loading">Embed-System wird geladen…</div></main>;
+  if (mode === 'error') return <main className="dashboard-app"><div className="error-panel"><span className="page-kicker">BWW / EMBEDS</span><h1>Embed-System nicht verfügbar</h1><p>{error}</p><a className="button-secondary" href="/dashboard">Zur Übersicht</a></div></main>;
 
   return (
-    <main className="dashboard-app">
-      <div className="dashboard-frame">
-        <aside className="sidebar">
-          <a className="sidebar-brand" href="/dashboard"><span className="brand-icon">B</span><span><strong>BWW</strong><small>COMMAND CENTER</small></span></a>
-          <nav className="sidebar-nav" aria-label="Dashboard">
-            <span className="nav-group-label">ÜBERSICHT</span>
-            <a className="sidebar-link" href="/dashboard">▦<span>Dashboard</span></a>
-            <a className="sidebar-link active" href="/embeds">▣<span>Embeds V2</span></a>
-            <a className="sidebar-link" href="/settings">⚙<span>Einstellungen</span></a>
-            <span className="nav-group-label spaced">SYSTEM</span>
-            <a className="sidebar-link" href="/dashboard#servers">◈<span>Server</span></a>
-            <a className="sidebar-link" href="/dashboard#status">◉<span>Bot-Status</span></a>
-          </nav>
-          <div className="sidebar-bottom">
-            <div className="access-chip"><span className="status-indicator online" /><div><strong>Admin Session</strong><small>Components V2 aktiv</small></div></div>
-            <button className="sidebar-logout" onClick={logout}>↪<span>Abmelden</span></button>
+    <DashboardShell active="embeds">
+      <div className="page">
+        <header className="page-header">
+          <div>
+            <div className="breadcrumb">BWW <span>/</span> Embeds V2</div>
+            <h1>Embeds V2</h1>
+            <p>Erstelle Discord Components-V2-Nachrichten, speichere Vorlagen und veröffentliche sie direkt aus dem Dashboard.</p>
           </div>
-        </aside>
+          <div className="header-meta"><span className="v2-status"><i /> Components V2</span></div>
+        </header>
 
-        <section className="dashboard-main">
-          <header className="dashboard-topbar settings-topbar">
-            <div>
-              <span className="eyebrow">BWW / COMPONENTS V2</span>
-              <h1>Embed-System</h1>
-              <p>Erstelle, bearbeite und speichere deine Discord-Nachrichten als Components-V2-Vorlagen.</p>
-            </div>
-            <div className="top-actions"><span className="secure-pill">V2 ONLY</span><a className="button-secondary" href="/dashboard">Übersicht</a></div>
-          </header>
+        {error && <div className="alert error">{error}</div>}
+        {message && <div className="alert success">{message}</div>}
 
-          {error && <div className="form-alert error">{error}</div>}
-          {message && <div className="form-alert success">{message}</div>}
+        <section className="embed-layout">
+          <div className="embed-builder">
+            <div className="section-title"><div><span className="section-kicker">BUILDER</span><h2>Neue Nachricht</h2></div><button className="text-button" onClick={reset}>Zurücksetzen</button></div>
+            <article className="surface-card builder-card">
+              <div className="builder-head"><div><strong>Vorlage bearbeiten</strong><span>Alle Änderungen werden erst beim Speichern veröffentlicht.</span></div><span className="v2-chip">V2</span></div>
 
-          <section className="embed-workspace">
-            <div className="embed-editor">
-              <article className="settings-card">
-                <div className="settings-card-heading">
-                  <div><span className="eyebrow">BUILDER</span><h2>V2-Nachricht erstellen</h2></div>
-                  <span className="v2-badge">COMPONENTS V2</span>
+              <div className="form-field"><span>Vorlagenname</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. server-regeln" maxLength={64} /></div>
+              <div className="form-field"><span>Titel</span><input value={data.title} onChange={(e) => patch('title', e.target.value)} placeholder="Titel der Nachricht" maxLength={256} /></div>
+              <BuilderField label="Text"><textarea value={data.description} onChange={(e) => patch('description', e.target.value)} placeholder="Inhalt der Nachricht…" rows={7} maxLength={4000} /></BuilderField>
+
+              <div className="form-grid">
+                <BuilderField label="Farbe" hint="6-stelliger Hex-Wert">
+                  <div className="color-row"><input value={data.color} onChange={(e) => patch('color', e.target.value.replace('#', '').toUpperCase().slice(0, 6))} placeholder="5865F2" maxLength={6} /><span style={{ background: previewColor }} /></div>
+                </BuilderField>
+                <BuilderField label="Footer"><input value={data.footer} onChange={(e) => patch('footer', e.target.value)} placeholder="Optionaler Hinweis" maxLength={1000} /></BuilderField>
+              </div>
+
+              <div className="form-grid">
+                <BuilderField label="Thumbnail URL"><input value={data.thumbnail} onChange={(e) => patch('thumbnail', e.target.value)} placeholder="https://…" /></BuilderField>
+                <BuilderField label="Bild URL"><input value={data.image} onChange={(e) => patch('image', e.target.value)} placeholder="https://…" /></BuilderField>
+              </div>
+
+              <BuilderField label="Discord Channel-ID" hint="Nur erforderlich, wenn direkt gesendet werden soll."><input value={channelId} onChange={(e) => setChannelId(e.target.value.replace(/\D/g, '').slice(0, 32))} placeholder="Channel-ID" /></BuilderField>
+
+              <div className="builder-actions">
+                <button className="button-primary" onClick={() => save(false)} disabled={busy}>{busy ? 'Speichere…' : 'Vorlage speichern'}</button>
+                <button className="button-accent" onClick={() => save(true)} disabled={busy || !channelId}>{busy ? 'Sende…' : 'In Discord senden'}</button>
+              </div>
+            </article>
+
+            <article className="surface-card template-card">
+              <div className="card-header"><div><span className="section-kicker">LIBRARY</span><h3>Gespeicherte Vorlagen</h3></div><span className="soft-badge">{templates.length}</span></div>
+              {templates.length ? <div className="template-list">{templates.map((template) => (
+                <div className={'template-row ' + (selected === template.id ? 'selected' : '')} key={template.id}>
+                  <button onClick={() => useTemplate(template)}><span className="template-icon">V2</span><span><strong>{template.name}</strong><small>{template.data?.title || 'Ohne Titel'}</small></span></button>
+                  <button className="delete-template" onClick={() => remove(template.id)} aria-label={template.name + ' löschen'}>×</button>
                 </div>
-                <label><span>Vorlagenname</span><input value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. server-regeln" maxLength={64} /></label>
-                <label><span>Titel</span><input value={data.title} onChange={(e) => patch('title', e.target.value)} placeholder="Titel des V2-Containers" maxLength={256} /></label>
-                <label><span>Text</span><textarea value={data.description} onChange={(e) => patch('description', e.target.value)} placeholder="Inhalt der Nachricht…" rows={9} maxLength={4000} /></label>
-                <div className="embed-form-grid">
-                  <label><span>Farbe</span><div className="color-input"><input value={data.color} onChange={(e) => patch('color', e.target.value.replace('#', '').toUpperCase().slice(0, 6))} placeholder="5865F2" maxLength={6} /><span style={{ background: previewColor }} /></div></label>
-                  <label><span>Footer</span><input value={data.footer} onChange={(e) => patch('footer', e.target.value)} placeholder="Optionaler Hinweis" maxLength={1000} /></label>
+              ))}</div> : <div className="empty-inline">Noch keine Vorlagen gespeichert.</div>}
+            </article>
+          </div>
+
+          <aside className="preview-column">
+            <article className="surface-card preview-card">
+              <div className="card-header"><div><span className="section-kicker">PREVIEW</span><h3>Discord</h3></div><span className="soft-badge">LIVE</span></div>
+              <div className="discord-window">
+                <div className="discord-user"><span className="discord-avatar">B</span><span><strong>BWW</strong><small>heute um jetzt</small></span></div>
+                <div className="discord-message" style={{ borderLeftColor: previewColor }}>
+                  {data.title && <strong className="preview-title">{data.title}</strong>}
+                  <div className="preview-text">{data.description || 'Dein Nachrichtentext wird hier angezeigt.'}</div>
+                  {data.thumbnail && <div className="preview-thumbnail"><img src={data.thumbnail} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} /></div>}
+                  {data.image && <div className="preview-image"><img src={data.image} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} /></div>}
+                  {data.footer && <><div className="preview-rule" /><div className="preview-footer">{data.footer}</div></>}
                 </div>
-                <label><span>Thumbnail URL</span><input value={data.thumbnail} onChange={(e) => patch('thumbnail', e.target.value)} placeholder="https://…" /></label>
-                <label><span>Bild URL</span><input value={data.image} onChange={(e) => patch('image', e.target.value)} placeholder="https://…" /></label>
-                <label><span>Discord Channel-ID zum Senden</span><input value={channelId} onChange={(e) => setChannelId(e.target.value.replace(/\\D/g, '').slice(0, 32))} placeholder="Nur zum direkten Senden" /></label>
-                <div className="embed-actions"><button className="button-primary" onClick={() => save(false)} disabled={busy}>{busy ? 'Speichere…' : 'V2-Vorlage speichern'}</button><button className="send-v2-button" onClick={() => save(true)} disabled={busy || !channelId}>{busy ? 'Sende…' : '↗ In Discord senden'}</button><button className="ghost-button" onClick={() => { setName(''); setChannelId(''); setData(EMPTY); setSelected(''); setMessage(''); setError(''); }}>Neu</button></div>
-              </article>
-            </div>
-
-            <aside className="embed-preview-column">
-              <article className="settings-card embed-preview-card">
-                <div className="settings-card-heading"><div><span className="eyebrow">LIVE PREVIEW</span><h2>Components V2</h2></div><span className="preview-status">V2</span></div>
-                <div className="discord-preview">
-                  <div className="discord-user"><span className="discord-avatar">B</span><div><strong>BWW</strong><small>heute um jetzt</small></div></div>
-                  <div className="v2-container-preview" style={{ borderLeftColor: previewColor }}>
-                    {data.title && <div className="preview-title">## {data.title}</div>}
-                    <div className="preview-description">{data.description || 'Dein Text erscheint hier…'}</div>
-                    {data.thumbnail && <div className="preview-thumb-wrap"><img src={data.thumbnail} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} /></div>}
-                    {data.image && <div className="preview-image-wrap"><img src={data.image} alt="" onError={(e) => { e.currentTarget.style.display = 'none'; }} /></div>}
-                    {data.footer && <><div className="preview-divider" /><div className="preview-footer">{data.footer}</div></>}
-                  </div>
-                  <div className="preview-flags">MessageFlags.IsComponentsV2 · ContainerBuilder</div>
-                </div>
-              </article>
-
-              <article className="settings-card saved-embeds">
-                <div className="settings-card-heading"><div><span className="eyebrow">LIBRARY</span><h2>Gespeicherte Vorlagen</h2></div><span className="count-pill">{templates.length}</span></div>
-                {templates.length ? <div className="template-list">{templates.map((template) => (
-                  <div className={'template-item ' + (selected === template.id ? 'selected' : '')} key={template.id}>
-                    <button className="template-use" onClick={() => useTemplate(template)}><strong>{template.name}</strong><small>{template.data?.title || 'Ohne Titel'}</small></button>
-                    <button className="template-delete" onClick={() => remove(template.id)} aria-label={'Vorlage ' + template.name + ' löschen'}>×</button>
-                  </div>
-                ))}</div> : <p className="hint">Noch keine Vorlagen gespeichert.</p>}
-              </article>
-            </aside>
-          </section>
-
-          <footer className="dashboard-footer"><span>BWW Embed-System</span><span>Discord Components V2 · zentral in Supabase</span><span>{new Date().getFullYear()}</span></footer>
+                <small className="preview-note">Components V2 · ContainerBuilder</small>
+              </div>
+            </article>
+            <div className="info-card"><strong>Components V2</strong><span>Das Bot-System sendet diese Nachrichten mit Discord MessageFlags.IsComponentsV2.</span></div>
+          </aside>
         </section>
+
+        <footer className="page-footer"><span>BWW Embed-System</span><span>Zentral in Supabase gespeichert</span></footer>
       </div>
-    </main>
+    </DashboardShell>
   );
 }
