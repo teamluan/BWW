@@ -213,3 +213,34 @@ export async function getOverviewData(guildId) {
     server
   };
 }
+
+export async function listEmbedTemplates(guildId) {
+  const response = await dbRequest(
+    `bww_embed_templates?select=id,name,data,created_by,updated_by,created_at,updated_at&guild_id=eq.${encodeURIComponent(guildId)}&order=updated_at.desc`,
+    { headers: { Prefer: 'return=representation' } }
+  );
+  return (await response.json()) || [];
+}
+
+export async function saveEmbedTemplate(guildId, name, data, updatedBy = 'website') {
+  const response = await dbRequest('bww_embed_templates?on_conflict=guild_id,name', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=merge-duplicates,return=representation' },
+    body: JSON.stringify({
+      guild_id: guildId,
+      name,
+      data,
+      updated_by: String(updatedBy).slice(0, 100),
+      updated_at: new Date().toISOString(),
+    }),
+  });
+  return (await response.json())?.[0] || null;
+}
+
+export async function deleteEmbedTemplate(guildId, id) {
+  const response = await dbRequest(
+    `bww_embed_templates?id=eq.${encodeURIComponent(id)}&guild_id=eq.${encodeURIComponent(guildId)}`,
+    { method: 'DELETE', headers: { Prefer: 'return=representation' } }
+  );
+  return (await response.json())?.length > 0;
+}
