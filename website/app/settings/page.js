@@ -109,6 +109,7 @@ export default function SettingsPage() {
           <nav className="sidebar-nav" aria-label="Dashboard">
             <span className="nav-group-label">ÜBERSICHT</span>
             <a className="sidebar-link" href="/dashboard">▦<span>Dashboard</span></a>
+            <a className="sidebar-link" href="/embeds">▣<span>Embeds V2</span></a>
             <a className="sidebar-link active" href="/settings">⚙<span>Einstellungen</span></a>
             <span className="nav-group-label spaced">SERVER</span>
             <a className="sidebar-link" href="#welcome">◈<span>Welcome</span></a>
