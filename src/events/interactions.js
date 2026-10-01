@@ -36,13 +36,14 @@ module.exports = async (interaction, client) => {
       const actionType = String(action.type || 'none');
 
       let defaultText = interaction.isButton() ? '✅ Aktion ausgeführt.' : '✅ Auswahl gespeichert.';
+      let actionSucceeded = true;
 
       if (actionType !== 'none') {
         if (!interaction.guild || !interaction.member?.roles?.add || !interaction.member?.roles?.remove) {
           return interaction.reply({ content: '❌ Diese Aktion ist nur auf einem Server verfügbar.', ...EPHEMERAL });
         }
 
-        const roleId = String(action.roleId || '').replace(/[0-9]/g, (m) => m).match(/[0-9]+/g)?.join('') || '';
+        const roleId = String(action.roleId || '').split('').filter((char) => char >= '0' && char <= '9').join('');
         if (!roleId) {
           return interaction.reply({ content: '❌ Für diese V2-Aktion ist keine gültige Rollen-ID hinterlegt.', ...EPHEMERAL });
         }
@@ -85,11 +86,12 @@ module.exports = async (interaction, client) => {
           }
         } catch (error) {
           console.error('[BWW] Embed-V2-Aktion fehlgeschlagen:', error.message);
+          actionSucceeded = false;
           defaultText = '❌ Die konfigurierte V2-Aktion konnte nicht ausgeführt werden.';
         }
       }
 
-      const text = (responseText || defaultText)
+      const text = ((actionSucceeded && responseText) ? responseText : defaultText)
         .replaceAll('{values}', values)
         .replaceAll('{user}', `<@${interaction.user.id}>`)
         .replaceAll('{username}', interaction.user.username)
