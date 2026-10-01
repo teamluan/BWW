@@ -27,6 +27,16 @@ const DEFAULT_SETTINGS = Object.freeze({
     messageId: '',
     mode: 'online'
   },
+  honeypot: {
+    enabled: false,
+    channelId: '',
+    logChannelId: '',
+    punishment: 'none',
+    timeoutMinutes: 10,
+    deleteMessage: true,
+    ignoreAdmins: true,
+    exemptRoleIds: []
+  },
   permissions: {}
 });
 
@@ -47,6 +57,13 @@ function mergeSettings(value) {
     verify: { ...DEFAULT_SETTINGS.verify, ...(parsed.verify || {}) },
     ticket: { ...DEFAULT_SETTINGS.ticket, ...(parsed.ticket || {}) },
     status: { ...DEFAULT_SETTINGS.status, ...(parsed.status || {}) },
+    honeypot: {
+      ...DEFAULT_SETTINGS.honeypot,
+      ...(parsed.honeypot || {}),
+      exemptRoleIds: Array.isArray(parsed.honeypot?.exemptRoleIds)
+        ? [...new Set(parsed.honeypot.exemptRoleIds.map((id) => String(id).replace(/\D/g, '')).filter(Boolean))].slice(0, 25)
+        : []
+    },
     permissions: parsed.permissions && typeof parsed.permissions === 'object' && !Array.isArray(parsed.permissions)
       ? Object.fromEntries(Object.entries(parsed.permissions).map(([key, roles]) => [
           key,
@@ -276,6 +293,37 @@ async function failDashboardAction(id, error) {
   );
 }
 
+async function recordHoneypotEvent(guildId, event = {}) {
+  if (!guildId || !isConfigured()) return null;
+  const response = await supabaseRequest('bww_honeypot_events', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({
+      guild_id: String(guildId),
+      channel_id: String(event.channelId || '').replace(/\D/g, ''),
+      message_id: String(event.messageId || '').replace(/\D/g, '') || null,
+      user_id: String(event.userId || '').replace(/\D/g, ''),
+      username: String(event.username || '').slice(0, 200) || null,
+      action: 'triggered',
+      punishment: ['none', 'kick', 'ban', 'timeout'].includes(String(event.punishment)) ? String(event.punishment) : 'none',
+      punishment_success: typeof event.punishmentSuccess === 'boolean' ? event.punishmentSuccess : null,
+      message_deleted: Boolean(event.messageDeleted),
+      message_url: String(event.messageUrl || '').slice(0, 500) || null,
+      error: String(event.error || '').slice(0, 500) || null
+    })
+  });
+  return (await response.json())?.[0] || null;
+}
+
+async function getHoneypotEvents(guildId, limit = 50) {
+  if (!guildId || !isConfigured()) return [];
+  const response = await supabaseRequest(
+    `bww_honeypot_events?select=id,channel_id,message_id,user_id,username,punishment,punishment_success,message_deleted,message_url,error,created_at&guild_id=eq.${encodeURIComponent(guildId)}&order=created_at.desc&limit=${Math.max(1, Math.min(100, Number(limit) || 50))}`,
+    { headers: { Prefer: 'return=representation' } }
+  );
+  return (await response.json()) || [];
+}
+
 module.exports = {
   DEFAULT_SETTINGS,
   isConfigured,
@@ -290,5 +338,7 @@ module.exports = {
   claimDashboardAction,
   completeDashboardAction,
   failDashboardAction,
-  findEmbedInteraction
+  findEmbedInteraction,
+  recordHoneypotEvent,
+  getHoneypotEvents
 };
