@@ -244,3 +244,17 @@ export async function deleteEmbedTemplate(guildId, id) {
   );
   return (await response.json())?.length > 0;
 }
+
+export async function queueDashboardAction(guildId, action, payload, createdBy = 'website') {
+  const response = await dbRequest('bww_dashboard_actions', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({
+      guild_id: guildId,
+      action,
+      payload,
+      created_by: String(createdBy).slice(0, 100),
+    }),
+  });
+  return (await response.json())?.[0] || null;
+}
