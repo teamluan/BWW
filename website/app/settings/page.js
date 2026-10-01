@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 
 const COMMANDS = [
-  'nachricht', 'setup', 'verify', 'ticket', 'giveaway',
+  'nachricht', 'embed', 'setup', 'verify', 'ticket', 'giveaway',
   'panel-create', 'panel-send', 'panel-delete', 'panel-list',
   'panel-add-button', 'umfrage', 'setup-status', 'wartung',
   'restart', 'kick', 'ban', 'unban', 'timeout', 'giverole', 'removerole'
