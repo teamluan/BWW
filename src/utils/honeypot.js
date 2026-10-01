@@ -30,8 +30,8 @@ function isConfigured(config) {
   return Boolean(config?.honeypot?.enabled && config.honeypot.channelId);
 }
 
-function isExempt(message, config) {
-  const member = message.member;
+async function isExempt(message, config) {
+  const member = message.member || await message.guild.members.fetch(message.author.id).catch(() => null);
   if (!member) return false;
   if (config.ignoreAdmins && member.permissions?.has?.(PermissionFlagsBits.Administrator)) return true;
   return config.exemptRoleIds.some((roleId) => member.roles?.cache?.has?.(roleId));
@@ -109,7 +109,7 @@ async function honeypot(message, configSource) {
   const config = normalizeHoneypot(configSource);
   if (!isConfigured({ honeypot: config })) return;
   if (message.channelId !== config.channelId) return;
-  if (isExempt(message, config)) return;
+  if (await isExempt(message, config)) return;
   if (shouldThrottle(message.author.id)) return;
 
   let deleted = false;
