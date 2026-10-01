@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useMemo, useState } from 'react';
+import DashboardShell from '../../components/dashboard-shell';
 
 const COMMANDS = [
   'nachricht', 'embed', 'setup', 'verify', 'ticket', 'giveaway',
@@ -17,18 +18,31 @@ const EMPTY = {
   permissions: {}
 };
 
+function Switch({ active, onClick }) {
+  return <button className={'switch ' + (active ? 'active' : '')} onClick={onClick} aria-pressed={active}><span /></button>;
+}
+
+function SettingsCard({ kicker, title, description, active, onToggle, children }) {
+  return (
+    <article className="surface-card settings-card">
+      <div className="settings-heading">
+        <div><span className="section-kicker">{kicker}</span><h2>{title}</h2>{description && <p>{description}</p>}</div>
+        {typeof active === 'boolean' && <Switch active={active} onClick={onToggle} />}
+      </div>
+      {children}
+    </article>
+  );
+}
+
 export default function SettingsPage() {
   const [mode, setMode] = useState('loading');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
   const [guild, setGuild] = useState(null);
   const [settings, setSettings] = useState(EMPTY);
-  const [saved, setSaved] = useState('');
+  const [saved, setSaved] = useState(false);
 
-  const permissionRows = useMemo(
-    () => COMMANDS.map((name) => ({ name, roles: settings.permissions?.[name] || [] })),
-    [settings.permissions]
-  );
+  const permissionRows = useMemo(() => COMMANDS.map((name) => ({ name, roles: settings.permissions?.[name] || [] })), [settings.permissions]);
 
   async function load() {
     const response = await fetch('/api/dashboard/settings', { cache: 'no-store' });
@@ -40,7 +54,7 @@ export default function SettingsPage() {
     if (!response.ok) throw new Error(data.error || 'Einstellungen konnten nicht geladen werden.');
     setGuild(data.guild);
     setSettings(data.settings || EMPTY);
-    setMode('settings');
+    setMode('ready');
   }
 
   useEffect(() => {
@@ -51,25 +65,19 @@ export default function SettingsPage() {
   }, []);
 
   function patch(section, key, value) {
-    setSettings((current) => ({
-      ...current,
-      [section]: { ...current[section], [key]: value }
-    }));
-    setSaved('');
+    setSettings((current) => ({ ...current, [section]: { ...current[section], [key]: value } }));
+    setSaved(false);
   }
 
   function setPermission(command, raw) {
     const roles = raw.split(/[,\s]+/).map((id) => id.replace(/\D/g, '')).filter(Boolean).slice(0, 25);
-    setSettings((current) => ({
-      ...current,
-      permissions: { ...current.permissions, [command]: roles }
-    }));
-    setSaved('');
+    setSettings((current) => ({ ...current, permissions: { ...current.permissions, [command]: roles } }));
+    setSaved(false);
   }
 
   async function save() {
     setBusy(true);
-    setSaved('');
+    setSaved(false);
     setError('');
     try {
       const response = await fetch('/api/dashboard/settings', {
@@ -80,7 +88,7 @@ export default function SettingsPage() {
       const data = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(data.error || 'Speichern fehlgeschlagen.');
       setSettings(data.settings);
-      setSaved('Änderungen gespeichert.');
+      setSaved(true);
     } catch (err) {
       setError(err.message || 'Speichern fehlgeschlagen.');
     } finally {
@@ -88,98 +96,89 @@ export default function SettingsPage() {
     }
   }
 
-  async function logout() {
-    await fetch('/api/dashboard/logout', { method: 'POST' });
-    window.location.replace('/');
-  }
-
-  if (mode === 'loading') {
-    return <main className="dashboard-app"><div className="page-loading"><span className="brand-icon">B</span><span>Einstellungen werden geladen…</span></div></main>;
-  }
-
-  if (mode === 'error') {
-    return <main className="dashboard-app"><div className="error-panel"><span className="eyebrow">BWW COMMAND CENTER</span><h1>Bereich nicht verfügbar</h1><p>{error}</p><a className="button-secondary" href="/dashboard">Zur Übersicht</a></div></main>;
-  }
+  if (mode === 'loading') return <main className="dashboard-app"><div className="page-loading">Einstellungen werden geladen…</div></main>;
+  if (mode === 'error') return <main className="dashboard-app"><div className="error-panel"><span className="page-kicker">BWW COMMAND CENTER</span><h1>Bereich nicht verfügbar</h1><p>{error}</p><a className="button-secondary" href="/dashboard">Zur Übersicht</a></div></main>;
 
   return (
-    <main className="dashboard-app">
-      <div className="dashboard-frame">
-        <aside className="sidebar">
-          <a className="sidebar-brand" href="/dashboard"><span className="brand-icon">B</span><span><strong>BWW</strong><small>COMMAND CENTER</small></span></a>
-          <nav className="sidebar-nav" aria-label="Dashboard">
-            <span className="nav-group-label">ÜBERSICHT</span>
-            <a className="sidebar-link" href="/dashboard">▦<span>Dashboard</span></a>
-            <a className="sidebar-link" href="/embeds">▣<span>Embeds V2</span></a>
-            <a className="sidebar-link active" href="/settings">⚙<span>Einstellungen</span></a>
-            <span className="nav-group-label spaced">SERVER</span>
-            <a className="sidebar-link" href="#welcome">◈<span>Welcome</span></a>
-            <a className="sidebar-link" href="#verify">✓<span>Verifizierung</span></a>
-            <a className="sidebar-link" href="#ticket">□<span>Tickets</span></a>
-          </nav>
-          <div className="sidebar-bottom">
-            <div className="access-chip"><span className="status-indicator online" /><div><strong>Admin Session</strong><small>{guild?.name || 'Geschützt aktiv'}</small></div></div>
-            <button className="sidebar-logout" onClick={logout}>↪<span>Abmelden</span></button>
+    <DashboardShell active="settings" guild={guild}>
+      <div className="page">
+        <header className="page-header">
+          <div>
+            <div className="breadcrumb">BWW <span>/</span> Einstellungen</div>
+            <h1>Einstellungen</h1>
+            <p>Konfiguriere deinen Bot zentral. Änderungen werden direkt gespeichert und vom Bot übernommen.</p>
           </div>
-        </aside>
+          <div className="header-meta"><span className="server-context">{guild?.name || 'BWW Server'}</span></div>
+        </header>
 
-        <section className="dashboard-main">
-          <header className="dashboard-topbar settings-topbar">
-            <div>
-              <span className="eyebrow">BWW / SERVER-KONFIGURATION</span>
-              <h1>Einstellungen</h1>
-              <p>Konfiguriere deinen Bot zentral. Die Änderungen werden direkt in Supabase gespeichert.</p>
-            </div>
-            <div className="top-actions"><span className="secure-pill">ADMIN · {guild?.name || 'BWW'}</span><a className="button-secondary" href="/dashboard">Übersicht</a></div>
-          </header>
+        {error && <div className="alert error">{error}</div>}
+        {saved && <div className="alert success">Änderungen wurden gespeichert.</div>}
 
-          {error && <div className="form-alert error">{error}</div>}
-          {saved && <div className="form-alert success">{saved}</div>}
+        <section className="settings-layout">
+          <div className="settings-main">
+            <div className="section-title"><div><span className="section-kicker">SERVER</span><h2>Grundkonfiguration</h2></div><span className="section-caption">4 Bereiche</span></div>
 
-          <section className="settings-grid">
-            <article className="settings-card" id="welcome">
-              <div className="settings-card-heading"><div><span className="eyebrow">WELCOME</span><h2>Willkommensnachricht</h2></div><button className={'toggle-button ' + (settings.welcome.enabled ? 'active' : '')} onClick={() => patch('welcome', 'enabled', !settings.welcome.enabled)}>{settings.welcome.enabled ? 'AN' : 'AUS'}</button></div>
-              <label><span>Channel-ID</span><input value={settings.welcome.channelId} onChange={(e) => patch('welcome', 'channelId', e.target.value)} placeholder="Discord Channel-ID" /></label>
-              <label><span>Titel</span><input value={settings.welcome.title} onChange={(e) => patch('welcome', 'title', e.target.value)} placeholder="Optionaler Titel" /></label>
-              <label><span>Nachricht</span><textarea value={settings.welcome.message} onChange={(e) => patch('welcome', 'message', e.target.value)} rows={5} /></label>
-              <p className="hint"><code>{'{user}'}</code> Ping · <code>{'{username}'}</code> Name · <code>{'{server}'}</code> Server · <code>{'{count}'}</code> Mitglieder</p>
-            </article>
+            <SettingsCard kicker="WELCOME" title="Willkommensnachricht" description="Begrüße neue Mitglieder automatisch." active={settings.welcome.enabled} onToggle={() => patch('welcome', 'enabled', !settings.welcome.enabled)}>
+              <div className="form-grid">
+                <label><span>Channel-ID</span><input value={settings.welcome.channelId} onChange={(e) => patch('welcome', 'channelId', e.target.value)} placeholder="Discord Channel-ID" /></label>
+                <label><span>Titel</span><input value={settings.welcome.title} onChange={(e) => patch('welcome', 'title', e.target.value)} placeholder="Optionaler Titel" /></label>
+              </div>
+              <label className="form-field"><span>Nachricht</span><textarea value={settings.welcome.message} onChange={(e) => patch('welcome', 'message', e.target.value)} rows={4} /></label>
+              <p className="field-hint"><code>{'{user}'}</code> Ping · <code>{'{username}'}</code> Name · <code>{'{server}'}</code> Server · <code>{'{count}'}</code> Mitglieder</p>
+            </SettingsCard>
 
-            <article className="settings-card" id="verify">
-              <div className="settings-card-heading"><div><span className="eyebrow">VERIFY</span><h2>Verifizierung</h2></div><button className={'toggle-button ' + (settings.verify.enabled ? 'active' : '')} onClick={() => patch('verify', 'enabled', !settings.verify.enabled)}>{settings.verify.enabled ? 'AN' : 'AUS'}</button></div>
-              <label><span>Channel-ID</span><input value={settings.verify.channelId} onChange={(e) => patch('verify', 'channelId', e.target.value)} placeholder="Discord Channel-ID" /></label>
-              <label><span>Rollen-ID</span><input value={settings.verify.roleId} onChange={(e) => patch('verify', 'roleId', e.target.value)} placeholder="Discord Rollen-ID" /></label>
-              <label><span>Text</span><textarea value={settings.verify.message} onChange={(e) => patch('verify', 'message', e.target.value)} rows={5} /></label>
-            </article>
+            <SettingsCard kicker="VERIFY" title="Verifizierung" description="Richte den Verifizierungs-Channel und die Rolle ein." active={settings.verify.enabled} onToggle={() => patch('verify', 'enabled', !settings.verify.enabled)}>
+              <div className="form-grid">
+                <label><span>Channel-ID</span><input value={settings.verify.channelId} onChange={(e) => patch('verify', 'channelId', e.target.value)} placeholder="Discord Channel-ID" /></label>
+                <label><span>Rollen-ID</span><input value={settings.verify.roleId} onChange={(e) => patch('verify', 'roleId', e.target.value)} placeholder="Discord Rollen-ID" /></label>
+              </div>
+              <label className="form-field"><span>Text</span><textarea value={settings.verify.message} onChange={(e) => patch('verify', 'message', e.target.value)} rows={4} /></label>
+            </SettingsCard>
 
-            <article className="settings-card" id="ticket">
-              <div className="settings-card-heading"><div><span className="eyebrow">TICKETS</span><h2>Ticket-System</h2></div><button className={'toggle-button ' + (settings.ticket.enabled ? 'active' : '')} onClick={() => patch('ticket', 'enabled', !settings.ticket.enabled)}>{settings.ticket.enabled ? 'AN' : 'AUS'}</button></div>
-              <label><span>Kategorie-ID</span><input value={settings.ticket.categoryId} onChange={(e) => patch('ticket', 'categoryId', e.target.value)} placeholder="Discord Kategorie-ID" /></label>
-              <label><span>Support-Rollen-ID</span><input value={settings.ticket.roleId} onChange={(e) => patch('ticket', 'roleId', e.target.value)} placeholder="Discord Rollen-ID" /></label>
-              <p className="hint">Kategorie und Support-Rolle werden beim Erstellen neuer Tickets verwendet.</p>
-            </article>
+            <SettingsCard kicker="TICKETS" title="Ticket-System" description="Definiere Kategorie und Support-Rolle für neue Tickets." active={settings.ticket.enabled} onToggle={() => patch('ticket', 'enabled', !settings.ticket.enabled)}>
+              <div className="form-grid">
+                <label><span>Kategorie-ID</span><input value={settings.ticket.categoryId} onChange={(e) => patch('ticket', 'categoryId', e.target.value)} placeholder="Discord Kategorie-ID" /></label>
+                <label><span>Support-Rollen-ID</span><input value={settings.ticket.roleId} onChange={(e) => patch('ticket', 'roleId', e.target.value)} placeholder="Discord Rollen-ID" /></label>
+              </div>
+            </SettingsCard>
 
-            <article className="settings-card">
-              <div className="settings-card-heading"><div><span className="eyebrow">STATUS</span><h2>Status-Embed</h2></div><button className={'toggle-button ' + (settings.status.enabled ? 'active' : '')} onClick={() => patch('status', 'enabled', !settings.status.enabled)}>{settings.status.enabled ? 'AN' : 'AUS'}</button></div>
-              <label><span>Channel-ID</span><input value={settings.status.channelId} onChange={(e) => patch('status', 'channelId', e.target.value)} placeholder="Discord Channel-ID" /></label>
-              <label><span>Modus</span><select value={settings.status.mode} onChange={(e) => patch('status', 'mode', e.target.value)}><option value="online">Online</option><option value="maintenance">Wartung</option><option value="offline">Offline</option></select></label>
-              <label><span>Message-ID</span><input value={settings.status.messageId} readOnly /></label>
-              <p className="hint">Beim Wechsel des Channels kann der Bot das Status-Embed automatisch neu anlegen.</p>
-            </article>
+            <SettingsCard kicker="STATUS" title="Bot-Status" description="Steuere den zentralen Status-Channel des Bots." active={settings.status.enabled} onToggle={() => patch('status', 'enabled', !settings.status.enabled)}>
+              <div className="form-grid">
+                <label><span>Channel-ID</span><input value={settings.status.channelId} onChange={(e) => patch('status', 'channelId', e.target.value)} placeholder="Discord Channel-ID" /></label>
+                <label><span>Modus</span><select value={settings.status.mode} onChange={(e) => patch('status', 'mode', e.target.value)}><option value="online">Online</option><option value="maintenance">Wartung</option><option value="offline">Offline</option></select></label>
+              </div>
+              <label className="form-field"><span>Message-ID</span><input value={settings.status.messageId} readOnly /></label>
+            </SettingsCard>
 
-            <article className="settings-card settings-wide">
-              <div className="settings-card-heading"><div><span className="eyebrow">BERECHTIGUNGEN</span><h2>Command-Rollen</h2></div></div>
-              <p className="hint">Mehrere Rollen-IDs mit Komma oder Leerzeichen trennen. Discord-Administratoren haben weiterhin Zugriff.</p>
-              <div className="permission-list">
+            <SettingsCard kicker="BERECHTIGUNGEN" title="Command-Rollen" description="Lege fest, welche Rollen einzelne Commands ausführen dürfen.">
+              <div className="permissions-table">
                 {permissionRows.map(({ name, roles }) => (
-                  <label key={name} className="permission-row"><span>/{name}</span><input value={roles.join(', ')} onChange={(e) => setPermission(name, e.target.value)} placeholder="Rollen-ID(s)" /></label>
+                  <label key={name}><span>/{name}</span><input value={roles.join(', ')} onChange={(e) => setPermission(name, e.target.value)} placeholder="Rollen-ID(s)" /></label>
                 ))}
               </div>
-            </article>
-          </section>
+            </SettingsCard>
+          </div>
 
-          <footer className="settings-footer"><span>Server-ID: {guild?.guild_id}</span><button className="button-primary" onClick={save} disabled={busy}>{busy ? 'Speichere…' : 'Änderungen speichern'}</button></footer>
+          <aside className="settings-aside">
+            <div className="surface-card sticky-card">
+              <span className="section-kicker">SERVER</span>
+              <h3>{guild?.name || 'BWW Server'}</h3>
+              <p>Alle Einstellungen gelten für diese Discord-Guild.</p>
+              <div className="server-summary">
+                <div><span>Server-ID</span><strong>{guild?.guild_id || '—'}</strong></div>
+                <div><span>Mitglieder</span><strong>{new Intl.NumberFormat('de-DE').format(Number(guild?.member_count) || 0)}</strong></div>
+              </div>
+              <div className="aside-divider" />
+              <a className="aside-link" href="/embeds"><span><strong>Embeds V2</strong><small>Nachrichten zentral erstellen</small></span><span>→</span></a>
+            </div>
+          </aside>
         </section>
+
+        <footer className="save-bar">
+          <span>Server-ID: {guild?.guild_id}</span>
+          <button className="button-primary" onClick={save} disabled={busy}>{busy ? 'Speichere…' : 'Änderungen speichern'}</button>
+        </footer>
       </div>
-    </main>
+    </DashboardShell>
   );
 }
