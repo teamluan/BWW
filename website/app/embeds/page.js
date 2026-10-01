@@ -61,6 +61,28 @@ function Field({ label, children, hint }) {
   return <label className="builder-field"><span>{label}</span>{children}{hint && <small>{hint}</small>}</label>;
 }
 
+function ActionEditor({ action, onChange }) {
+  const type = action?.type || 'none';
+  return (
+    <div className="nested-card compact">
+      <div className="nested-head"><strong>Aktion</strong><span className="soft-badge">INTERAKTIV</span></div>
+      <Field label="Aktion">
+        <select value={type} onChange={(e) => onChange({ type: e.target.value, roleId: e.target.value === 'none' ? '' : (action?.roleId || '') })}>
+          <option value="none">Keine zusätzliche Aktion</option>
+          <option value="role_add">Rolle hinzufügen</option>
+          <option value="role_remove">Rolle entfernen</option>
+          <option value="role_toggle">Rolle umschalten</option>
+        </select>
+      </Field>
+      {type !== 'none' && (
+        <Field label="Rollen-ID" hint="Die Aktion gilt für den Benutzer, der klickt bzw. auswählt.">
+          <input value={action?.roleId || ''} onChange={(e) => onChange({ ...action, type, roleId: e.target.value.replace(/\D/g, '').slice(0, 32) })} placeholder="123456789012345678" />
+        </Field>
+      )}
+    </div>
+  );
+}
+
 function ButtonEditor({ button, onChange, onRemove, compact = false }) {
   return (
     <div className={'nested-card ' + (compact ? 'compact' : '')}>
@@ -77,6 +99,7 @@ function ButtonEditor({ button, onChange, onRemove, compact = false }) {
       </div>
       {button.style !== 'link' && <label className="check-option"><input type="checkbox" checked={Boolean(button.disabled)} onChange={(e) => onChange({ ...button, disabled: e.target.checked })} /><span>Deaktiviert</span></label>}
       {button.style !== 'link' && <Field label="Antwort nach Klick" hint="{user}, {username}, {server} und {values} sind verfügbar."><textarea rows={3} value={button.response || ''} onChange={(e) => onChange({ ...button, response: e.target.value })} placeholder="z. B. ✅ Danke {user}!" /></Field>}
+      {button.style !== 'link' && <ActionEditor action={button.action} onChange={(action) => onChange({ ...button, action })} />}
     </div>
   );
 }
@@ -161,6 +184,7 @@ Dein Text mit **Markdown**…" maxLength={4000} /></Field>;
         </div>
         <label className="check-option"><input type="checkbox" checked={Boolean(component.disabled)} onChange={(e) => update({ disabled: e.target.checked })} /><span>Select deaktivieren</span></label>
         <Field label="Antwort bei Auswahl" hint="{values} enthält die ausgewählten Werte bzw. IDs."><textarea rows={3} value={component.response || ''} onChange={(e) => update({ response: e.target.value })} placeholder="z. B. ✅ Auswahl: {values}" /></Field>
+        <ActionEditor action={component.action} onChange={(action) => update({ action })} />
         {component.kind === 'string' && <div className="nested-stack">
           <div className="component-subheading">Optionen · max. 25</div>
           {options.map((option, index) => <div className="nested-card compact" key={index}>
@@ -373,7 +397,7 @@ export default function EmbedsPage() {
               <div className="card-header"><div><span className="section-kicker">LIVE PREVIEW</span><h3>Discord</h3></div><span className="soft-badge">LIVE</span></div>
               <Preview data={data} />
             </article>
-            <div className="info-card"><strong>Was jetzt unterstützt wird</strong><span>Text Displays · Sections · Thumbnails · Media Gallery · File · Separator · Button-Reihen · String/User/Role/Mentionable/Channel Selects · Spoiler. File-Komponenten werden beim Senden als echte Discord-Anhänge vorbereitet.</span></div>
+            <div className="info-card"><strong>Was jetzt unterstützt wird</strong><span>Text Displays · Sections · Thumbnails · Media Gallery · File · Separator · Button-Reihen · String/User/Role/Mentionable/Channel Selects · Spoiler · Rollenaktionen. File-Komponenten werden beim Senden als echte Discord-Anhänge vorbereitet.</span></div>
           </aside>
         </section>
 
