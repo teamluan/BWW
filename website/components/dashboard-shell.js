@@ -39,6 +39,7 @@ export default function DashboardShell({ active, guild, children }) {
             <nav className="sidebar-nav" aria-label="Hauptnavigation">
               <Link className={'nav-link ' + (active === 'dashboard' ? 'active' : '')} href="/dashboard"><Icon name="overview" /><span>Übersicht</span></Link>
               <Link className={'nav-link ' + (active === 'embeds' ? 'active' : '')} href="/embeds"><Icon name="embed" /><span>Embeds V2</span></Link>
+              <Link className={'nav-link ' + (active === 'honeypot' ? 'active' : '')} href="/honeypot"><Icon name="honeypot" /><span>Honeypot</span></Link>
               <Link className={'nav-link ' + (active === 'settings' ? 'active' : '')} href="/settings"><Icon name="settings" /><span>Einstellungen</span></Link>
             </nav>
           </div>
