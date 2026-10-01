@@ -169,6 +169,7 @@ export default function SettingsPage() {
                 <div><span>Mitglieder</span><strong>{new Intl.NumberFormat('de-DE').format(Number(guild?.member_count) || 0)}</strong></div>
               </div>
               <div className="aside-divider" />
+              <a className="aside-link" href="/honeypot"><span><strong>Honeypot</strong><small>Trap-Channel und Sicherheit verwalten</small></span><span>→</span></a>
               <a className="aside-link" href="/embeds"><span><strong>Embeds V2</strong><small>Nachrichten zentral erstellen</small></span><span>→</span></a>
             </div>
           </aside>
