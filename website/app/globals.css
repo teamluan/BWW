@@ -1,5 +1,3 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap');
-
 :root {
   --bg: #080a0d;
   --panel: #0f1217;
@@ -629,3 +627,6 @@ input[readonly] { color: var(--subtle); }
 @media (max-width: 410px) {
   .metric-grid { grid-template-columns: 1fr; }
 }
+
+.auth-feature-row { display: flex; align-items: center; gap: 9px; margin-top: 12px; color: var(--muted); font-size: 11px; }
+.auth-feature-dot { width: 6px; height: 6px; flex: 0 0 6px; border-radius: 50%; background: #727cf8; }
