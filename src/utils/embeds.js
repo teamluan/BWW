@@ -3,6 +3,8 @@ const {
   TextDisplayBuilder,
   SectionBuilder,
   ThumbnailBuilder,
+  FileBuilder,
+  AttachmentBuilder,
   MediaGalleryBuilder,
   MediaGalleryItemBuilder,
   SeparatorBuilder,
@@ -33,6 +35,74 @@ const SELECT_BUILDERS = {
   mentionable: MentionableSelectMenuBuilder,
   channel: ChannelSelectMenuBuilder
 };
+
+const MAX_REMOTE_FILE_BYTES = Math.max(
+  1_048_576,
+  Math.min(50 * 1_024 * 1_024, Number(process.env.BWW_MAX_FILE_BYTES) || 20 * 1_024 * 1_024)
+);
+
+function sanitizeFilename(value, fallback = 'bww-file.bin') {
+  const cleaned = String(value || '')
+    .trim()
+    .replace(/[\\/:*?"<>|\x00-\x1F]/g, '-')
+    .replace(/\s+/g, ' ')
+    .slice(0, 100);
+  return cleaned || fallback;
+}
+
+function isBlockedRemoteHost(hostname) {
+  const host = String(hostname || '').toLowerCase();
+  if (!host || host === 'localhost' || host.endsWith('.localhost') || host.endsWith('.local')) return true;
+  if (/^127(?:\\.\\d{1,3}){3}$/.test(host)) return true;
+  if (/^10(?:\\.\\d{1,3}){3}$/.test(host)) return true;
+  if (/^192\\.168(?:\\.\\d{1,3}){2}$/.test(host)) return true;
+  const private172 = host.match(/^172\\.(\\d{1,3})\\.\\d{1,3}\\.\\d{1,3}$/);
+  if (private172 && Number(private172[1]) >= 16 && Number(private172[1]) <= 31) return true;
+  if (host === '::1' || host.startsWith('fc') || host.startsWith('fd')) return true;
+  return false;
+}
+
+async function fetchRemoteFile(inputUrl) {
+  let currentUrl = String(inputUrl || '').trim();
+  for (let hop = 0; hop < 4; hop++) {
+    const parsed = new URL(currentUrl);
+    if (!['http:', 'https:'].includes(parsed.protocol)) {
+      throw new Error('File-URL muss http:// oder https:// verwenden.');
+    }
+    if (isBlockedRemoteHost(parsed.hostname)) {
+      throw new Error('Diese File-URL zeigt auf einen nicht erlaubten privaten Host.');
+    }
+
+    const response = await fetch(currentUrl, {
+      redirect: 'manual',
+      headers: { 'user-agent': 'BWW-Discord-Bot/1.0' }
+    });
+
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get('location');
+      if (!location) throw new Error('File-Weiterleitung ohne Ziel.');
+      currentUrl = new URL(location, currentUrl).toString();
+      continue;
+    }
+
+    if (!response.ok) {
+      throw new Error(`Datei konnte nicht geladen werden (HTTP ${response.status}).`);
+    }
+
+    const length = Number(response.headers.get('content-length') || 0);
+    if (length > MAX_REMOTE_FILE_BYTES) {
+      throw new Error(`Datei ist zu groß. Maximum: ${Math.floor(MAX_REMOTE_FILE_BYTES / 1_048_576)} MB.`);
+    }
+
+    const buffer = Buffer.from(await response.arrayBuffer());
+    if (buffer.length > MAX_REMOTE_FILE_BYTES) {
+      throw new Error(`Datei ist zu groß. Maximum: ${Math.floor(MAX_REMOTE_FILE_BYTES / 1_048_576)} MB.`);
+    }
+    return buffer;
+  }
+
+  throw new Error('Zu viele File-Weiterleitungen.');
+}
 
 function resolveWelcomeText(text, member) {
   return String(text || '')
@@ -96,6 +166,9 @@ function buildSelect(data = {}) {
         .setLabel(safeText(option.label || option.value || 'Option', 100))
         .setValue(safeText(option.value || option.label || 'option', 100));
       if (option.description) item.setDescription(safeText(option.description, 100));
+      if (option.emoji) {
+        try { item.setEmoji({ name: safeText(option.emoji, 100) }); } catch {}
+      }
       if (option.default) item.setDefault(true);
       return item;
     }));
@@ -109,7 +182,9 @@ function buildSelect(data = {}) {
 
 function buildComponentsV2(data = {}) {
   const source = data && typeof data === 'object' && !Array.isArray(data) ? data : {};
-  const container = new ContainerBuilder().setAccentColor(normalizeColor(source.color));
+  const container = new ContainerBuilder()
+    .setAccentColor(normalizeColor(source.color))
+    .setSpoiler(Boolean(source.spoiler));
   const components = Array.isArray(source.components) ? source.components.slice(0, 40) : [];
   let renderedComponents = 0;
 
@@ -131,6 +206,19 @@ function buildComponentsV2(data = {}) {
           .setSpacing(String(component.spacing) === 'large' ? SeparatorSpacingSize.Large : SeparatorSpacingSize.Small)
           .setDivider(component.divider !== false)
       );
+      renderedComponents++;
+      continue;
+    }
+
+    if (type === 'file') {
+      const fileUrl = safeText(component.url, 1000);
+      if (!/^attachment:\/\//i.test(fileUrl)) {
+        throw new Error('File Component benötigt eine vorbereitete attachment://-URL.');
+      }
+      const file = new FileBuilder()
+        .setURL(fileUrl)
+        .setSpoiler(Boolean(component.spoiler));
+      container.addFileComponents(file);
       renderedComponents++;
       continue;
     }
@@ -253,6 +341,47 @@ function buildComponentsV2(data = {}) {
   return container;
 }
 
+async function prepareEmbedV2(data = {}) {
+  const source = data && typeof data === 'object' && !Array.isArray(data)
+    ? JSON.parse(JSON.stringify(data))
+    : {};
+  const components = Array.isArray(source.components) ? source.components : [];
+  const attachments = [];
+  const usedNames = new Set();
+
+  for (const component of components) {
+    if (component?.type !== 'file') continue;
+
+    const sourceUrl = String(component.url || '').trim();
+    if (!sourceUrl) throw new Error('File Component benötigt eine Datei-URL.');
+
+    let filename = sanitizeFilename(component.filename);
+    const original = filename;
+    let suffix = 2;
+    while (usedNames.has(filename)) {
+      filename = original.includes('.')
+        ? original.replace(/(\.[^./]+)$/, `-${suffix++}$1`)
+        : `${original}-${suffix++}`;
+    }
+    usedNames.add(filename);
+
+    const buffer = await fetchRemoteFile(sourceUrl);
+    attachments.push(
+      new AttachmentBuilder(buffer)
+        .setName(filename)
+        .setDescription(safeText(component.description || '', 1024))
+        .setSpoiler(Boolean(component.spoiler))
+    );
+
+    component.url = `attachment://${filename}`;
+  }
+
+  return {
+    container: buildComponentsV2(source),
+    attachments
+  };
+}
+
 function embedV2(options = {}) {
   return buildComponentsV2(options);
 }
@@ -302,6 +431,7 @@ function verifyComponents(config) {
 module.exports = {
   embedV2,
   buildComponentsV2,
+  prepareEmbedV2,
   welcomeComponents,
   verifyComponents,
   resolveWelcomeText,
