@@ -1,7 +1,7 @@
-const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, MediaGalleryBuilder, MediaGalleryItemBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, MessageFlags } = require('discord.js');
+const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const { isAllowed } = require('../commands');
 const { getGuildSettings, saveGuildSettings, createDashboardCode } = require('../utils/database');
-const { verifyComponents } = require('../utils/embeds');
+const { embedV2, verifyComponents } = require('../utils/embeds');
 const { ticketContainer, createTicket, TICKET_REASONS } = require('../utils/tickets');
 const { loadGiveaways, saveGiveaways, giveawayContainer, startGiveaway, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage } = require('../utils/giveaway');
 const { getPanel, setPanel, deletePanel, loadPanels, panelContainer, buttonResponseContainer, addPanelMessage } = require('../utils/panels');
@@ -242,12 +242,31 @@ module.exports = async (interaction, client) => {
     return interaction.reply({ content: `✅ ${member.user.tag} wurde die Rolle ${role} entfernt.`, ...EPHEMERAL });
   }
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
+  if (command === 'embed') {
+    const text = interaction.options.getString('text', true);
+    const title = interaction.options.getString('titel') || '';
+    const image = interaction.options.getString('bild') || '';
+    const thumbnail = interaction.options.getString('thumbnail') || '';
+    const color = interaction.options.getString('farbe') || '';
+    const footer = interaction.options.getString('footer') || '';
+    const container = embedV2({ title, description: text, image, thumbnail, color, footer });
+    try {
+      await interaction.channel.send({ components: [container], flags: V2, allowedMentions: { parse: [] } });
+      return interaction.reply({ content: '✅ Components-V2-Embed gesendet.', ...EPHEMERAL });
+    } catch (err) {
+      return interaction.reply({ content: `❌ Components-V2-Embed konnte nicht gesendet werden: ${err.message}`, ...EPHEMERAL });
+    }
+  }
   if (command === 'nachricht') {
-    const text = interaction.options.getString('text', true); const image = interaction.options.getString('bild');
-    const container = new ContainerBuilder().setAccentColor(0x2F3136);
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent(text));
-    if (image) { try { const gallery = new MediaGalleryBuilder().addItems(new MediaGalleryItemBuilder().setURL(image).setDescription('Bild')); container.addMediaGalleryComponents(gallery); } catch { container.addTextDisplayComponents(new TextDisplayBuilder().setContent(image)); } }
-    try { await interaction.channel.send({ components: [container], flags: V2, allowedMentions: { parse: [] } }); return interaction.reply({ content: '✅ Embed gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Embed konnte nicht gesendet werden: ${err.message}`, ...EPHEMERAL }); }
+    const text = interaction.options.getString('text', true);
+    const image = interaction.options.getString('bild') || '';
+    const container = embedV2({ description: text, image });
+    try {
+      await interaction.channel.send({ components: [container], flags: V2, allowedMentions: { parse: [] } });
+      return interaction.reply({ content: '✅ Components-V2-Embed gesendet.', ...EPHEMERAL });
+    } catch (err) {
+      return interaction.reply({ content: `❌ Components-V2-Embed konnte nicht gesendet werden: ${err.message}`, ...EPHEMERAL });
+    }
   }
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'ticket') {
