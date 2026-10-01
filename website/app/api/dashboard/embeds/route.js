@@ -51,12 +51,20 @@ function filename(value) {
 function sanitizeButton(input, index = 0) {
   const source = input && typeof input === 'object' ? input : {};
   const style = ['primary', 'secondary', 'success', 'danger', 'link'].includes(source.style) ? source.style : 'secondary';
+  const actionType = ['none', 'role_add', 'role_remove', 'role_toggle'].includes(source.action?.type)
+    ? source.action.type
+    : 'none';
+  const action = {
+    type: actionType,
+    roleId: actionType === 'none' ? '' : String(source.action?.roleId || '').replace(/\D/g, '').slice(0, 32),
+  };
   const button = {
     label: text(source.label || 'Button', 80),
     style,
     emoji: text(source.emoji, 100),
     disabled: Boolean(source.disabled),
     response: text(source.response, 2000),
+    action,
   };
   if (style === 'link') {
     button.url = url(source.url);
@@ -69,6 +77,13 @@ function sanitizeButton(input, index = 0) {
 function sanitizeSelect(input) {
   const source = input && typeof input === 'object' ? input : {};
   const kind = ['string', 'user', 'role', 'mentionable', 'channel'].includes(source.kind) ? source.kind : 'string';
+  const actionType = ['none', 'role_add', 'role_remove', 'role_toggle'].includes(source.action?.type)
+    ? source.action.type
+    : 'none';
+  const action = {
+    type: actionType,
+    roleId: actionType === 'none' ? '' : String(source.action?.roleId || '').replace(/\D/g, '').slice(0, 32),
+  };
   const select = {
     kind,
     customId: customId(source.customId, 'bww_embed_select_'),
@@ -77,6 +92,7 @@ function sanitizeSelect(input) {
     maxValues: Math.max(1, Math.min(25, Number.isFinite(Number(source.maxValues)) ? Number(source.maxValues) : 1)),
     disabled: Boolean(source.disabled),
     response: text(source.response, 2000),
+    action,
   };
   if (select.maxValues < select.minValues) select.maxValues = select.minValues || 1;
   if (kind === 'string') {
