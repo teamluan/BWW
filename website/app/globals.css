@@ -1009,3 +1009,187 @@ code {
   .stat-grid { grid-template-columns: 1fr; }
   .top-actions .live-pill { display: none; }
 }
+
+
+.v2-badge,
+.preview-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 9px;
+  border: 1px solid rgba(108,124,255,.2);
+  border-radius: 8px;
+  background: rgba(108,124,255,.08);
+  color: var(--accent-2);
+  font: 800 8px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  letter-spacing: .08em;
+}
+
+.embed-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1.08fr) minmax(330px, .92fr);
+  gap: 12px;
+  align-items: start;
+}
+
+.embed-editor .settings-card { min-height: 100%; }
+
+.embed-form-grid {
+  display: grid;
+  grid-template-columns: .55fr 1fr;
+  gap: 12px;
+  margin-top: 13px;
+}
+
+.embed-form-grid label { display: grid; gap: 7px; }
+
+.color-input { position: relative; display: flex; align-items: center; }
+.color-input input { padding-right: 46px; }
+.color-input > span {
+  position: absolute;
+  right: 10px;
+  width: 24px;
+  height: 24px;
+  border-radius: 7px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.16);
+}
+
+.embed-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+}
+
+.embed-actions .button-primary { justify-content: center; flex: 1; }
+
+.embed-preview-column {
+  display: grid;
+  gap: 12px;
+  position: sticky;
+  top: 18px;
+}
+
+.embed-preview-card { overflow: hidden; }
+
+.discord-preview {
+  padding: 15px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background:
+    radial-gradient(circle at 100% 0%, rgba(108,124,255,.08), transparent 14rem),
+    #080b11;
+}
+
+.discord-user {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 12px;
+}
+
+.discord-avatar {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: linear-gradient(145deg, #7784ff, #4f5fd4);
+  font-size: 10px;
+  font-weight: 900;
+}
+
+.discord-user strong,
+.discord-user small { display: block; }
+
+.discord-user strong { font-size: 9px; }
+.discord-user small { margin-top: 2px; color: var(--muted-2); font-size: 7px; }
+
+.v2-container-preview {
+  position: relative;
+  min-height: 110px;
+  padding: 15px 15px 14px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-left: 3px solid;
+  border-radius: 10px;
+  background: #111722;
+  overflow: hidden;
+}
+
+.preview-title { color: var(--text); font-size: 12px; font-weight: 850; line-height: 1.4; }
+.preview-description { margin-top: 8px; color: #ced5df; font-size: 10px; line-height: 1.65; white-space: pre-wrap; }
+
+.preview-thumb-wrap {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  width: 65px;
+  height: 65px;
+  overflow: hidden;
+  border-radius: 8px;
+  background: rgba(255,255,255,.04);
+}
+.preview-thumb-wrap img { width: 100%; height: 100%; object-fit: cover; }
+
+.preview-image-wrap {
+  margin-top: 12px;
+  max-height: 210px;
+  overflow: hidden;
+  border-radius: 9px;
+  background: rgba(255,255,255,.03);
+}
+.preview-image-wrap img { display: block; width: 100%; height: auto; max-height: 210px; object-fit: cover; }
+
+.preview-divider { height: 1px; margin: 13px 0 9px; background: rgba(255,255,255,.07); }
+.preview-footer { color: var(--muted-2); font-size: 8px; }
+.preview-flags { margin-top: 10px; color: var(--muted-2); font: 500 7px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+
+.template-list { display: grid; gap: 6px; }
+.template-item {
+  display: flex;
+  gap: 6px;
+  align-items: stretch;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  background: rgba(255,255,255,.018);
+}
+.template-item:hover,
+.template-item.selected { border-color: rgba(108,124,255,.18); background: rgba(108,124,255,.06); }
+
+.template-use {
+  flex: 1;
+  min-width: 0;
+  padding: 10px 11px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.template-use strong,
+.template-use small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.template-use strong { font-size: 10px; }
+.template-use small { margin-top: 4px; color: var(--muted-2); font-size: 8px; }
+
+.template-delete {
+  align-self: center;
+  width: 32px;
+  height: 32px;
+  margin-right: 4px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--muted-2);
+  font-size: 20px;
+  cursor: pointer;
+}
+.template-delete:hover { background: rgba(255,104,117,.08); color: var(--red); }
+
+@media (max-width: 950px) {
+  .embed-workspace { grid-template-columns: 1fr; }
+  .embed-preview-column { position: static; }
+}
+
+@media (max-width: 560px) {
+  .embed-form-grid { grid-template-columns: 1fr; }
+  .embed-actions { flex-direction: column; }
+}
