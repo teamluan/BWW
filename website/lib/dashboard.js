@@ -3,6 +3,8 @@ import { cookies } from 'next/headers';
 
 const COOKIE_NAME = 'bww_dashboard_session';
 const SESSION_SECRET = process.env.BWW_DASHBOARD_SECRET || '';
+const SESSION_DURATION_DAYS = Math.max(1, Math.min(90, Number(process.env.BWW_DASHBOARD_SESSION_DAYS || 30)));
+const SESSION_DURATION_MS = SESSION_DURATION_DAYS * 24 * 60 * 60 * 1000;
 const SUPABASE_URL = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const SUPABASE_SECRET_KEY = process.env.SUPABASE_SECRET_KEY || '';
 
@@ -96,15 +98,18 @@ function decodeSession(value) {
   const b = Buffer.from(expected);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
   const payload = Buffer.from(body, 'base64url').toString('utf8');
-  const [id, guildId, expiresAt] = payload.split('|');
-  if (!id || !guildId || !expiresAt || Date.now() >= Number(expiresAt)) return null;
-  return { id, guildId, expiresAt: Number(expiresAt) };
-}
-
-export async function setDashboardSession(id, guildId, expiresAt) {
+  const [id, guexport async function setDashboardSession(id, guildId, expiresAt = Date.now() + SESSION_DURATION_MS) {
   const cookieStore = await cookies();
-  const maxAge = Math.max(60, Math.floor((Number(expiresAt) - Date.now()) / 1000));
-  cookieStore.set(COOKIE_NAME, encodeSession(`${id}|${guildId}|${Number(expiresAt)}`), {
+  const sessionExpiresAt = Math.max(Date.now() + 60_000, Number(expiresAt) || (Date.now() + SESSION_DURATION_MS));
+  const maxAge = Math.max(60, Math.floor((sessionExpiresAt - Date.now()) / 1000));
+  cookieStore.set(COOKIE_NAME, encodeSession(`${id}|${guildId}|${sessionExpiresAt}`), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === 'production',
+    sameSite: 'lax',
+    path: '/',
+    maxAge
+  });
+} encodeSession(`${id}|${guildId}|${Number(expiresAt)}`), {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
     sameSite: 'lax',
@@ -125,7 +130,7 @@ export async function getDashboardSession() {
   if (!session) return null;
 
   const response = await dbRequest(
-    `bww_dashboard_logins?select=id,guild_id,expires_at&id=eq.${encodeURIComponent(session.id)}&guild_id=eq.${encodeURIComponent(session.guildId)}&expires_at=gt.${encodeURIComponent(new Date().toISOString())}&limit=1`,
+    `bww_dashboard_logins?select=id,guild_id&id=eq.${encodeURIComponent(session.id)}&guild_id=eq.${encodeURIComponent(session.guildId)}&used_at=not.is.null&limit=1`,
     { headers: { Prefer: 'return=representation' } }
   );
   const rows = await response.json();
