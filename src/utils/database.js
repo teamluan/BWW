@@ -201,6 +201,31 @@ async function markOffline(client) {
   await upsertBotStatus(client, 'offline');
 }
 
+async function findEmbedInteraction(guildId, customId) {
+  if (!guildId || !customId || !isConfigured()) return null;
+  const response = await supabaseRequest(
+    `bww_embed_templates?select=id,name,data&guild_id=eq.${encodeURIComponent(guildId)}&limit=100`,
+    { headers: { Prefer: 'return=representation' } }
+  );
+  const rows = (await response.json()) || [];
+  for (const row of rows) {
+    const components = Array.isArray(row.data?.components) ? row.data.components : [];
+    for (const component of components) {
+      if (component?.type === 'buttons') {
+        const button = (component.buttons || []).find((item) => item?.customId === customId);
+        if (button) return { template: row, component: button };
+      }
+      if (component?.type === 'select' && component.customId === customId) {
+        return { template: row, component };
+      }
+      if (component?.type === 'section' && component.accessory?.type === 'button' && component.accessory.customId === customId) {
+        return { template: row, component: component.accessory };
+      }
+    }
+  }
+  return null;
+}
+
 async function getPendingDashboardActions(limit = 10) {
   if (!isConfigured()) return [];
   const response = await supabaseRequest(
