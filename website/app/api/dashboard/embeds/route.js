@@ -84,6 +84,7 @@ function sanitizeSelect(input) {
       label: text(option?.label || 'Option ' + (index + 1), 100),
       value: text(option?.value || 'option_' + (index + 1), 100),
       description: text(option?.description, 100),
+      emoji: text(option?.emoji, 100),
       default: Boolean(option?.default),
     })).filter((option) => option.label && option.value);
   }
