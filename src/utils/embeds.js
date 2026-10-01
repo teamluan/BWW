@@ -75,6 +75,7 @@ async function fetchRemoteFile(inputUrl) {
 
     const response = await fetch(currentUrl, {
       redirect: 'manual',
+      signal: AbortSignal.timeout(15_000),
       headers: { 'user-agent': 'BWW-Discord-Bot/1.0' }
     });
 
