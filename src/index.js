@@ -2,7 +2,7 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Partials, REST, Routes, Events, MessageFlags } = require('discord.js');
 const { commands } = require('./commands');
 const welcome = require('./events/welcome');
-const { embedV2 } = require('./utils/embeds');
+const { prepareEmbedV2 } = require('./utils/embeds');
 const interactions = require('./events/interactions');
 const { startGiveawayLoop } = require('./utils/giveaway');
 const { updateStatusMessage, ensureStatusMessage, formatUptime } = require('./utils/status');
@@ -36,9 +36,10 @@ async function processDashboardActions(bot) {
       if (!channelId) throw new Error('Keine gültige Channel-ID.');
       const channel = guild.channels.cache.get(channelId) || await guild.channels.fetch(channelId).catch(() => null);
       if (!channel?.isTextBased()) throw new Error('Discord-Channel nicht gefunden oder nicht textbasiert.');
-      const container = embedV2(payload.data || {});
+      const prepared = await prepareEmbedV2(payload.data || {});
       await channel.send({
-        components: [container],
+        components: [prepared.container],
+        files: prepared.attachments,
         flags: MessageFlags.IsComponentsV2,
         allowedMentions: { parse: [] }
       });
