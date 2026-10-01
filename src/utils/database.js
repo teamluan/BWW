@@ -289,5 +289,6 @@ module.exports = {
   getPendingDashboardActions,
   claimDashboardAction,
   completeDashboardAction,
-  failDashboardAction
+  failDashboardAction,
+  findEmbedInteraction
 };
