@@ -85,7 +85,7 @@ export default function DashboardPage() {
           <nav className="sidebar-nav" aria-label="Dashboard">
             <span className="nav-group-label">ÜBERSICHT</span>
             <a className="sidebar-link active" href="/dashboard"><Icon name="grid" /><span>Dashboard</span></a>
-            <a className="sidebar-link" href="/settings"><Icon name="settings" /><span>Einstellungen</span></a>
+            <a className="sidebar-link" href="/embeds"><span aria-hidden="true">▣</span><span>Embeds V2</span></a><a className="sidebar-link" href="/settings"><Icon name="settings" /><span>Einstellungen</span></a>
             <span className="nav-group-label spaced">SYSTEM</span>
             <a className="sidebar-link" href="#servers"><Icon name="server" /><span>Server</span></a>
             <a className="sidebar-link" href="#status"><Icon name="pulse" /><span>Bot-Status</span></a>
