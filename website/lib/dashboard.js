@@ -98,7 +98,12 @@ function decodeSession(value) {
   const b = Buffer.from(expected);
   if (a.length !== b.length || !crypto.timingSafeEqual(a, b)) return null;
   const payload = Buffer.from(body, 'base64url').toString('utf8');
-  const [id, guexport async function setDashboardSession(id, guildId, expiresAt = Date.now() + SESSION_DURATION_MS) {
+  const [id, guildId, expiresAt] = payload.split('|');
+  if (!id || !guildId || !expiresAt || Date.now() >= Number(expiresAt)) return null;
+  return { id, guildId, expiresAt: Number(expiresAt) };
+}
+
+export async function setDashboardSession(id, guildId, expiresAt = Date.now() + SESSION_DURATION_MS) {
   const cookieStore = await cookies();
   const sessionExpiresAt = Math.max(Date.now() + 60_000, Number(expiresAt) || (Date.now() + SESSION_DURATION_MS));
   const maxAge = Math.max(60, Math.floor((sessionExpiresAt - Date.now()) / 1000));
