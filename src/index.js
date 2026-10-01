@@ -7,7 +7,6 @@ const interactions = require('./events/interactions');
 const { startGiveawayLoop } = require('./utils/giveaway');
 const { updateStatusMessage, ensureStatusMessage, formatUptime } = require('./utils/status');
 const { isConfigured: databaseConfigured, getGuildSettings, upsertBotStatus, syncGuilds, markOffline, getPendingDashboardActions, claimDashboardAction, completeDashboardAction, failDashboardAction } = require('./utils/database');
-c
 
 const token = process.env.DISCORD_TOKEN || '';
 if (!token) {
