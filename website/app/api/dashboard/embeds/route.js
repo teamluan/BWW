@@ -128,6 +128,32 @@ function sanitizeComponent(input, index) {
   return null;
 }
 
+function ensureUniqueCustomIds(components) {
+  const used = new Set();
+  const unique = (value, prefix) => {
+    let next = value;
+    while (used.has(next)) next = (prefix + crypto.randomUUID()).slice(0, 100);
+    used.add(next);
+    return next;
+  };
+  return components.map((component, index) => {
+    const copy = JSON.parse(JSON.stringify(component));
+    if (copy.type === 'buttons') {
+      copy.buttons = (copy.buttons || []).map((button, buttonIndex) => {
+        if (button.style !== 'link') button.customId = unique(button.customId, 'bww_embed_btn_' + index + '_' + buttonIndex + '_');
+        return button;
+      });
+    }
+    if (copy.type === 'section' && copy.accessory?.type === 'button' && copy.accessory.style !== 'link') {
+      copy.accessory.customId = unique(copy.accessory.customId, 'bww_embed_section_btn_' + index + '_');
+    }
+    if (copy.type === 'select') {
+      copy.customId = unique(copy.customId, 'bww_embed_select_' + index + '_');
+    }
+    return copy;
+  });
+}
+
 function sanitizeData(input) {
   const source = input && typeof input === 'object' && !Array.isArray(input) ? input : {};
   const rawColor = text(source.color, 6).replace(/^#/, '').toUpperCase();
@@ -152,7 +178,7 @@ function sanitizeData(input) {
     thumbnail: url(source.thumbnail),
     image: url(source.image),
     footer: text(source.footer, 1000),
-    components,
+    components: ensureUniqueCustomIds(components),
   };
 }
 
