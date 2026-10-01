@@ -91,18 +91,18 @@ Dein Text mit **Markdown**…" maxLength={4000} /></Field>;
 
   if (component.type === 'section') {
     const texts = Array.isArray(component.texts) ? component.texts : [''];
-    const accessory = component.accessory || { type: 'thumbnail', url: '', description: '', spoiler: false };
+    const accessory = component.accessory;
     return (
       <div className="nested-stack">
         <div className="component-subheading">Section Text · bis zu 3 Text Displays</div>
         {texts.map((value, index) => <div className="nested-inline" key={index}><textarea rows={3} value={value} onChange={(e) => update({ texts: texts.map((item, i) => i === index ? e.target.value : item) })} placeholder={'Text Display ' + (index + 1)} /><button className="icon-text-button danger" onClick={() => update({ texts: texts.filter((_, i) => i !== index) })} disabled={texts.length === 1}>×</button></div>)}
         {texts.length < 3 && <button className="add-small-button" onClick={() => update({ texts: [...texts, ''] })}>+ Text Display</button>}
-        <Field label="Accessory"><select value={accessory.type || 'thumbnail'} onChange={(e) => update({ accessory: e.target.value === 'none' ? undefined : { ...(component.accessory || {}), type: e.target.value } })}><option value="thumbnail">Thumbnail</option><option value="button">Button</option><option value="none">Kein Accessory</option></select></Field>
-        {accessory.type === 'thumbnail' && <div className="form-grid">
+        <Field label="Accessory"><select value={accessory?.type || 'none'} onChange={(e) => update({ accessory: e.target.value === 'none' ? undefined : { ...(component.accessory || {}), type: e.target.value } })}><option value="thumbnail">Thumbnail</option><option value="button">Button</option><option value="none">Kein Accessory</option></select></Field>
+        {accessory?.type === 'thumbnail' && <div className="form-grid">
           <Field label="Thumbnail URL"><input value={accessory.url || ''} onChange={(e) => update({ accessory: { ...accessory, url: e.target.value } })} placeholder="https://…" /></Field>
           <Field label="Alt-Text"><input value={accessory.description || ''} onChange={(e) => update({ accessory: { ...accessory, description: e.target.value } })} /></Field>
         </div>}
-        {accessory.type === 'button' && <ButtonEditor button={{ label: 'Action', style: 'primary', customId: id('bww_embed_btn_'), response: '', ...(accessory || {}) }} onChange={(button) => update({ accessory: { ...button, type: 'button' } })} onRemove={() => update({ accessory: undefined })} compact />}
+        {accessory?.type === 'button' && <ButtonEditor button={{ label: 'Action', style: 'primary', customId: id('bww_embed_btn_'), response: '', ...(accessory || {}) }} onChange={(button) => update({ accessory: { ...button, type: 'button' } })} onRemove={() => update({ accessory: undefined })} compact />}
       </div>
     );
   }
