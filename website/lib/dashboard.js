@@ -32,6 +32,16 @@ export const DEFAULT_SETTINGS = {
     messageId: '',
     mode: 'online'
   },
+  honeypot: {
+    enabled: false,
+    channelId: '',
+    logChannelId: '',
+    punishment: 'none',
+    timeoutMinutes: 10,
+    deleteMessage: true,
+    ignoreAdmins: true,
+    exemptRoleIds: []
+  },
   permissions: {}
 };
 
@@ -47,6 +57,19 @@ function mergeSettings(value) {
       mode: ['online', 'offline', 'maintenance'].includes(parsed.status?.mode)
         ? parsed.status.mode
         : DEFAULT_SETTINGS.status.mode
+    },
+    honeypot: {
+      ...DEFAULT_SETTINGS.honeypot,
+      ...(parsed.honeypot || {}),
+      punishment: ['none', 'kick', 'ban', 'timeout'].includes(parsed.honeypot?.punishment)
+        ? parsed.honeypot.punishment
+        : DEFAULT_SETTINGS.honeypot.punishment,
+      timeoutMinutes: Math.max(1, Math.min(40320, Number(parsed.honeypot?.timeoutMinutes) || 10)),
+      deleteMessage: parsed.honeypot?.deleteMessage !== false,
+      ignoreAdmins: parsed.honeypot?.ignoreAdmins !== false,
+      exemptRoleIds: Array.isArray(parsed.honeypot?.exemptRoleIds)
+        ? [...new Set(parsed.honeypot.exemptRoleIds.map((id) => String(id).replace(/\D/g, '')).filter(Boolean))].slice(0, 25)
+        : []
     },
     permissions: parsed.permissions && typeof parsed.permissions === 'object' && !Array.isArray(parsed.permissions)
       ? Object.fromEntries(
@@ -260,4 +283,13 @@ export async function queueDashboardAction(guildId, action, payload, createdBy =
     }),
   });
   return (await response.json())?.[0] || null;
+}
+
+
+export async function getHoneypotEvents(guildId, limit = 50) {
+  const response = await dbRequest(
+    `bww_honeypot_events?select=id,channel_id,message_id,user_id,username,punishment,punishment_success,message_deleted,message_url,error,created_at&guild_id=eq.${encodeURIComponent(guildId)}&order=created_at.desc&limit=${Math.max(1, Math.min(100, Number(limit) || 50))}`,
+    { headers: { Prefer: 'return=representation' } }
+  );
+  return (await response.json()) || [];
 }
