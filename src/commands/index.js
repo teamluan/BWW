@@ -26,9 +26,17 @@ const panelCreateOptions = [
 ];
 
 const commands = [
-  { name: 'nachricht', description: 'Sendet Text und optional ein Bild als Embed.', options: [
+  { name: 'nachricht', description: 'Sendet ein Components-V2-Embed.', options: [
     { name: 'text', description: 'Text der Nachricht', type: 3, required: true },
     { name: 'bild', description: 'Optionale Bild-URL', type: 3, required: false }
+  ]},
+  { name: 'embed', description: 'Erstellt ein flexibles Components-V2-Embed.', options: [
+    { name: 'text', description: 'Inhalt des Embeds', type: 3, required: true },
+    { name: 'titel', description: 'Optionaler Titel', type: 3, required: false },
+    { name: 'bild', description: 'Optionale Bild-URL', type: 3, required: false },
+    { name: 'thumbnail', description: 'Optionale Thumbnail-URL', type: 3, required: false },
+    { name: 'farbe', description: 'Hex-Farbe, z. B. 5865F2', type: 3, required: false },
+    { name: 'footer', description: 'Optionaler Footer', type: 3, required: false }
   ]},
   { name: 'setup', description: 'Zeigt die Setup-Hilfe.' },
   { name: 'verify', description: 'Sendet das konfigurierte Verify-System.' },
@@ -96,7 +104,7 @@ const commands = [
   ]},
   { name: 'setup-permission', description: 'Rollenberechtigung f\u00FCr Commands setzen.', options: [
     { name: 'command', description: 'Command', type: 3, required: true, choices: [
-      { name: 'nachricht', value: 'nachricht' }, { name: 'setup', value: 'setup' }, { name: 'verify', value: 'verify' },
+      { name: 'nachricht', value: 'nachricht' }, { name: 'embed', value: 'embed' }, { name: 'setup', value: 'setup' }, { name: 'verify', value: 'verify' },
       { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'panel-create', value: 'panel-create' }, { name: 'panel-send', value: 'panel-send' }, { name: 'panel-delete', value: 'panel-delete' }, { name: 'panel-list', value: 'panel-list' }, { name: 'panel-add-button', value: 'panel-add-button' }, { name: 'umfrage', value: 'umfrage' }, { name: 'setup-status', value: 'setup-status' }, { name: 'wartung', value: 'wartung' }, { name: 'restart', value: 'restart' },
       { name: 'kick', value: 'kick' }, { name: 'ban', value: 'ban' }, { name: 'unban', value: 'unban' }, { name: 'timeout', value: 'timeout' },
       { name: 'giverole', value: 'giverole' }, { name: 'removerole', value: 'removerole' }
