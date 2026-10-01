@@ -30,8 +30,21 @@ module.exports = async (interaction, client) => {
     const resolved = await findEmbedInteraction(interaction.guildId, interaction.customId);
     if (resolved?.component) {
       const component = resolved.component;
-      const responseText = String(component.response || '').trim();
-      const values = interaction.isAnySelectMenu?.() ? (interaction.values || []).join(', ') : '';
+      const valuesArray = interaction.isAnySelectMenu?.() ? (interaction.values || []).map(String) : [];
+      const values = valuesArray.join(', ');
+      const optionResponses = interaction.isAnySelectMenu?.() && component.kind === 'string' && Array.isArray(component.options)
+        ? valuesArray
+            .map((value) => {
+              const option = component.options.find((item) => String(item?.value || '') === value);
+              const response = String(option?.response || '').trim();
+              if (!response) return '';
+              return response
+                .replaceAll('{value}', value)
+                .replaceAll('{label}', String(option?.label || value));
+            })
+            .filter(Boolean)
+        : [];
+      const responseText = optionResponses.join('\n') || String(component.response || '').trim();
       const action = component.action && typeof component.action === 'object' ? component.action : {};
       const actionType = String(action.type || 'none');
 
