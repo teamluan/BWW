@@ -345,7 +345,7 @@ export default function EmbedsPage() {
               <div className="card-header"><div><span className="section-kicker">LIVE PREVIEW</span><h3>Discord</h3></div><span className="soft-badge">LIVE</span></div>
               <Preview data={data} />
             </article>
-            <div className="info-card"><strong>Was jetzt unterstützt wird</strong><span>Text Displays · Sections · Thumbnails · Media Gallery · Separator · Button-Reihen · String/User/Role/Mentionable/Channel Selects. Discord unterstützt diese Nachrichtskomponenten mit IS_COMPONENTS_V2. cite ist nur im Chat, nicht UI. </span></div>
+            <div className="info-card"><strong>Was jetzt unterstützt wird</strong><span>Text Displays · Sections · Thumbnails · Media Gallery · Separator · Button-Reihen · String/User/Role/Mentionable/Channel Selects. Discord unterstützt diese Nachrichtskomponenten mit IS_COMPONENTS_V2.</span></div>
           </aside>
         </section>
 
