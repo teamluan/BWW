@@ -3,6 +3,7 @@ import {
   deleteEmbedTemplate,
   getDashboardSession,
   listEmbedTemplates,
+  queueDashboardAction,
   saveEmbedTemplate,
 } from '../../../../lib/dashboard';
 
@@ -64,8 +65,14 @@ export async function POST(request) {
     const body = await request.json();
     const name = sanitizeName(body?.name);
     if (!name) return NextResponse.json({ ok: false, error: 'Bitte einen Namen für die Vorlage angeben.' }, { status: 400 });
-    const template = await saveEmbedTemplate(session.guildId, name, sanitizeData(body?.data), 'website');
-    return NextResponse.json({ ok: true, template });
+    const cleanData = sanitizeData(body?.data);
+    if (body?.send === true) {
+      const channelId = String(body?.channelId || '').replace(/\D/g, '').slice(0, 32);
+      if (!channelId) return NextResponse.json({ ok: false, error: 'Für das Senden wird eine Discord Channel-ID benötigt.' }, { status: 400 });
+      await queueDashboardAction(session.guildId, 'send_embed_v2', { channelId, data: cleanData }, 'website');
+    }
+    const template = await saveEmbedTemplate(session.guildId, name, cleanData, 'website');
+    return NextResponse.json({ ok: true, template, queued: body?.send === true });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error.message || 'Embed konnte nicht gespeichert werden.' }, { status: 500 });
   }
