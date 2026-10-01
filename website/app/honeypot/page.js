@@ -189,7 +189,7 @@ export default function HoneypotPage() {
                   ))}
                 </div>
               ) : (
-                <div className="empty-state"><strong>Noch keine Treffer</strong><span>Der Honeypot hat bisher keine ausgenommenen Benutzer erkannt.</span></div>
+                <div className="empty-state"><strong>Noch keine Treffer</strong><span>Der Honeypot hat bisher keine Treffer erkannt.</span></div>
               )}
             </article>
           </div>
