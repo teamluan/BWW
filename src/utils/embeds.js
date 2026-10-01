@@ -88,6 +88,9 @@ function buildSelect(data = {}) {
   if (type === 'string') {
     const options = Array.isArray(data.options) ? data.options.slice(0, 25) : [];
     if (!options.length) throw new Error('String-Select benötigt mindestens eine Option.');
+    const maxValues = Math.max(1, Math.min(options.length, Number(data.maxValues) || 1));
+    const minValues = Math.max(0, Math.min(maxValues, Number(data.minValues) || 1));
+    menu.setMinValues(minValues).setMaxValues(maxValues);
     menu.addOptions(options.map((option) => {
       const item = new StringSelectMenuOptionBuilder()
         .setLabel(safeText(option.label || option.value || 'Option', 100))
@@ -96,6 +99,9 @@ function buildSelect(data = {}) {
       if (option.default) item.setDefault(true);
       return item;
     }));
+  } else {
+    if (Number.isInteger(Number(data.minValues))) menu.setMinValues(Math.max(0, Math.min(25, Number(data.minValues))));
+    if (Number.isInteger(Number(data.maxValues))) menu.setMaxValues(Math.max(1, Math.min(25, Number(data.maxValues))));
   }
 
   return menu;
