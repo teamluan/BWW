@@ -102,26 +102,15 @@ const commands = [
     { name: 'kategorie', description: 'Kategorie f\u00FCr Ticket-Kan\u00E4le', type: 7, required: true, channel_types: [4] },
     { name: 'rolle', description: 'Ticket-Rolle mit Kanalzugriff', type: 8, required: true }
   ]},
-  { name: 'setup-permission', description: 'Rollenberechtigung f\u00FCr Commands setzen.', options: [
-    { name: 'command', description: 'Command', type: 3, required: true, choices: [
-      { name: 'nachricht', value: 'nachricht' }, { name: 'embed', value: 'embed' }, { name: 'setup', value: 'setup' }, { name: 'verify', value: 'verify' },
-      { name: 'ticket', value: 'ticket' }, { name: 'giveaway', value: 'giveaway' }, { name: 'panel-create', value: 'panel-create' }, { name: 'panel-send', value: 'panel-send' }, { name: 'panel-delete', value: 'panel-delete' }, { name: 'panel-list', value: 'panel-list' }, { name: 'panel-add-button', value: 'panel-add-button' }, { name: 'umfrage', value: 'umfrage' }, { name: 'setup-status', value: 'setup-status' }, { name: 'wartung', value: 'wartung' }, { name: 'restart', value: 'restart' },
-      { name: 'kick', value: 'kick' }, { name: 'ban', value: 'ban' }, { name: 'unban', value: 'unban' }, { name: 'timeout', value: 'timeout' },
-      { name: 'giverole', value: 'giverole' }, { name: 'removerole', value: 'removerole' }
+  { name: 'setup-honeypot', description: 'Honeypot konfigurieren und aktivieren/deaktivieren.', options: [
+    { name: 'aktiv', description: 'true = aktiv, false = deaktiviert', type: 5, required: true },
+    { name: 'channel', description: 'Honeypot-Channel', type: 7, required: false, channel_types: [0] },
+    { name: 'log-channel', description: 'Optionaler Log-Channel', type: 7, required: false, channel_types: [0] },
+    { name: 'bestrafung', description: 'Reaktion nach einem Treffer', type: 3, required: false, choices: [
+      { name: 'Keine', value: 'none' }, { name: 'Kick', value: 'kick' }, { name: 'Ban', value: 'ban' }, { name: 'Timeout', value: 'timeout' }
     ]},
-    { name: 'role', description: 'Rolle', type: 8, required: true },
-    { name: 'erlauben', description: 'true = erlauben, false = entfernen', type: 5, required: true }
-  ]}
-];
-
-function isAllowed(interaction, config) {
-  if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return true;
-  const key = interaction.commandName;
-  if (!key) return false;
-  const roles = config.permissions[key] || [];
-  const memberRoles = interaction.member?.roles?.cache;
-  if (!memberRoles) return false;
-  return roles.some(id => memberRoles.has(id));
-}
-
-module.exports = { commands, isAllowed };
+    { name: 'timeout', description: 'Timeout in Minuten (1-40320)', type: 4, required: false },
+    { name: 'nachricht-loeschen', description: 'Getriggerte Nachricht löschen', type: 5, required: false },
+    { name: 'admins-ignorieren', description: 'Administratoren ausnehmen', type: 5, required: false },
+    { name: 'ausnahme-rolle', description: 'Optionale Rolle, die ausgenommen wird', type: 8, required: false }
+  ]},
