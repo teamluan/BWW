@@ -158,6 +158,7 @@ export default function DashboardPage() {
               <div className="card-header"><div><span className="section-kicker">SCHNELLZUGRIFF</span><h3>Verwalten</h3></div></div>
               <div className="quick-actions">
                 <a href="/embeds"><span><strong>Embeds V2</strong><small>Nachrichten erstellen und senden</small></span><Icon name="arrow" /></a>
+                <a href="/honeypot"><span><strong>Honeypot</strong><small>Trap-Channel und Treffer verwalten</small></span><Icon name="arrow" /></a>
                 <a href="/settings"><span><strong>Einstellungen</strong><small>Bot und Server konfigurieren</small></span><Icon name="arrow" /></a>
               </div>
             </article>
