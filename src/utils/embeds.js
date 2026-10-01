@@ -111,13 +111,17 @@ function buildComponentsV2(data = {}) {
   const source = data && typeof data === 'object' && !Array.isArray(data) ? data : {};
   const container = new ContainerBuilder().setAccentColor(normalizeColor(source.color));
   const components = Array.isArray(source.components) ? source.components.slice(0, 40) : [];
+  let renderedComponents = 0;
 
   for (const component of components) {
     const type = component?.type;
 
     if (type === 'text') {
       const content = safeText(component.content, 4000);
-      if (content) container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
+      if (content) {
+        container.addTextDisplayComponents(new TextDisplayBuilder().setContent(content));
+        renderedComponents++;
+      }
       continue;
     }
 
@@ -127,6 +131,7 @@ function buildComponentsV2(data = {}) {
           .setSpacing(String(component.spacing) === 'large' ? SeparatorSpacingSize.Large : SeparatorSpacingSize.Small)
           .setDivider(component.divider !== false)
       );
+      renderedComponents++;
       continue;
     }
 
@@ -144,6 +149,7 @@ function buildComponentsV2(data = {}) {
         )
       );
       container.addMediaGalleryComponents(gallery);
+      renderedComponents++;
       continue;
     }
 
@@ -169,6 +175,7 @@ function buildComponentsV2(data = {}) {
       }
 
       container.addSectionComponents(section);
+      renderedComponents++;
       continue;
     }
 
@@ -178,6 +185,7 @@ function buildComponentsV2(data = {}) {
       container.addActionRowComponents(
         new ActionRowBuilder().addComponents(...buttons.map((button) => buildButton(button)))
       );
+      renderedComponents++;
       continue;
     }
 
@@ -185,6 +193,7 @@ function buildComponentsV2(data = {}) {
       container.addActionRowComponents(
         new ActionRowBuilder().addComponents(buildSelect(component))
       );
+      renderedComponents++;
     }
   }
 
@@ -200,14 +209,21 @@ function buildComponentsV2(data = {}) {
         container.addSectionComponents(
           new SectionBuilder()
             .addTextDisplayComponents(
-              new TextDisplayBuilder().setContent([title && '## ' + title, description].filter(Boolean).join('\n'))
+              new TextDisplayBuilder().setContent([title && '## ' + title, description].filter(Boolean).join('\\n'))
             )
             .setThumbnailAccessory(new ThumbnailBuilder().setURL(thumbnail))
         );
+        renderedComponents++;
       } catch {}
     } else {
-      if (title) container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## ' + title));
-      if (description) container.addTextDisplayComponents(new TextDisplayBuilder().setContent(description));
+      if (title) {
+        container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## ' + title));
+        renderedComponents++;
+      }
+      if (description) {
+        container.addTextDisplayComponents(new TextDisplayBuilder().setContent(description));
+        renderedComponents++;
+      }
     }
 
     if (image) {
@@ -217,6 +233,7 @@ function buildComponentsV2(data = {}) {
             new MediaGalleryItemBuilder().setURL(image).setDescription(title || 'Bild')
           )
         );
+        renderedComponents++;
       } catch {}
     }
 
@@ -225,10 +242,13 @@ function buildComponentsV2(data = {}) {
         new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(false)
       );
       container.addTextDisplayComponents(new TextDisplayBuilder().setContent('-# ' + footer));
+      renderedComponents += 2;
     }
   }
 
-  return container;
+  if (!renderedComponents) {
+    throw new Error('Components-V2-Nachricht enthält keine gültigen Inhalte.');
+  }  return container;
 }
 
 function embedV2(options = {}) {
