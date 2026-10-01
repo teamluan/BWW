@@ -7,6 +7,7 @@ const EMPTY = {
   title: '',
   description: '',
   color: '5865F2',
+  spoiler: false,
   thumbnail: '',
   image: '',
   footer: '',
@@ -18,6 +19,7 @@ const COMPONENT_TYPES = [
   ['separator', 'Separator', 'Abstand / Trennlinie'],
   ['section', 'Section', 'Text + Thumbnail oder Button'],
   ['media_gallery', 'Media Gallery', '1–10 Bilder'],
+  ['file', 'File', 'Datei als V2-Komponente'],
   ['buttons', 'Button-Reihe', 'Bis zu 5 Buttons'],
   ['select', 'Select Menu', 'String, User, Role, Mentionable oder Channel'],
 ];
@@ -39,6 +41,7 @@ function blankComponent(type) {
   if (type === 'separator') return { type, divider: true, spacing: 'small' };
   if (type === 'section') return { type, texts: [''], accessory: { type: 'thumbnail', url: '', description: '', spoiler: false } };
   if (type === 'media_gallery') return { type, items: [{ url: '', description: '', spoiler: false }] };
+  if (type === 'file') return { type, url: '', filename: 'datei.pdf', description: '', spoiler: false };
   if (type === 'buttons') return { type, buttons: [{ label: 'Button', style: 'primary', customId: id('bww_embed_btn_'), url: '', emoji: '', disabled: false, response: '' }] };
   return { type: 'select', kind: 'string', customId: id('bww_embed_select_'), placeholder: 'Bitte auswählen…', minValues: 1, maxValues: 1, disabled: false, response: '', options: [{ label: 'Option 1', value: 'option_1', description: '', default: false }] };
 }
@@ -72,6 +75,7 @@ function ButtonEditor({ button, onChange, onRemove, compact = false }) {
           : <input value={button.customId || ''} onChange={(e) => onChange({ ...button, customId: e.target.value })} maxLength={100} />}</Field>
         <Field label="Emoji"><input value={button.emoji || ''} onChange={(e) => onChange({ ...button, emoji: e.target.value })} placeholder="Optional" /></Field>
       </div>
+      {button.style !== 'link' && <label className="check-option"><input type="checkbox" checked={Boolean(button.disabled)} onChange={(e) => onChange({ ...button, disabled: e.target.checked })} /><span>Deaktiviert</span></label>}
       {button.style !== 'link' && <Field label="Antwort nach Klick" hint="{user}, {username}, {server} und {values} sind verfügbar."><textarea rows={3} value={button.response || ''} onChange={(e) => onChange({ ...button, response: e.target.value })} placeholder="z. B. ✅ Danke {user}!" /></Field>}
     </div>
   );
@@ -101,6 +105,7 @@ Dein Text mit **Markdown**…" maxLength={4000} /></Field>;
         {accessory?.type === 'thumbnail' && <div className="form-grid">
           <Field label="Thumbnail URL"><input value={accessory.url || ''} onChange={(e) => update({ accessory: { ...accessory, url: e.target.value } })} placeholder="https://…" /></Field>
           <Field label="Alt-Text"><input value={accessory.description || ''} onChange={(e) => update({ accessory: { ...accessory, description: e.target.value } })} /></Field>
+          <label className="check-option"><input type="checkbox" checked={Boolean(accessory.spoiler)} onChange={(e) => update({ accessory: { ...accessory, spoiler: e.target.checked } })} /><span>Spoiler</span></label>
         </div>}
         {accessory?.type === 'button' && <ButtonEditor button={{ label: 'Action', style: 'primary', customId: id('bww_embed_btn_'), response: '', ...(accessory || {}) }} onChange={(button) => update({ accessory: { ...button, type: 'button' } })} onRemove={() => update({ accessory: undefined })} compact />}
       </div>
@@ -117,6 +122,22 @@ Dein Text mit **Markdown**…" maxLength={4000} /></Field>;
           <div className="form-grid"><Field label="Beschreibung"><input value={item.description || ''} onChange={(e) => update({ items: items.map((current, i) => i === index ? { ...current, description: e.target.value } : current) })} maxLength={1024} /></Field><label className="check-option"><input type="checkbox" checked={Boolean(item.spoiler)} onChange={(e) => update({ items: items.map((current, i) => i === index ? { ...current, spoiler: e.target.checked } : current) })} /><span>Spoiler</span></label></div>
         </div>)}
         {items.length < 10 && <button className="add-small-button" onClick={() => update({ items: [...items, { url: '', description: '', spoiler: false }] })}>+ Bild hinzufügen</button>}
+      </div>
+    );
+  }
+
+  if (component.type === 'file') {
+    return (
+      <div className="nested-stack">
+        <Field label="Datei-URL" hint="Der Bot lädt die Datei beim Senden herunter und hängt sie als echte Discord-Datei an.">
+          <input value={component.url || ''} onChange={(e) => update({ url: e.target.value })} placeholder="https://…/datei.pdf" />
+        </Field>
+        <div className="form-grid">
+          <Field label="Dateiname"><input value={component.filename || ''} onChange={(e) => update({ filename: e.target.value })} maxLength={100} placeholder="datei.pdf" /></Field>
+          <Field label="Beschreibung / Alt-Text"><input value={component.description || ''} onChange={(e) => update({ description: e.target.value })} maxLength={1024} /></Field>
+        </div>
+        <label className="check-option"><input type="checkbox" checked={Boolean(component.spoiler)} onChange={(e) => update({ spoiler: e.target.checked })} /><span>Spoiler</span></label>
+        <small className="builder-note">Standardmäßig maximal 20 MB pro Datei. Größere Discord-Kontolimits können abweichen.</small>
       </div>
     );
   }
@@ -138,13 +159,17 @@ Dein Text mit **Markdown**…" maxLength={4000} /></Field>;
           <Field label="Placeholder"><input value={component.placeholder || ''} onChange={(e) => update({ placeholder: e.target.value })} maxLength={150} /></Field>
           <Field label="Werte"><div className="value-range"><input type="number" min="0" max="25" value={component.minValues ?? 1} onChange={(e) => update({ minValues: Number(e.target.value) })} /><span>bis</span><input type="number" min="1" max="25" value={component.maxValues ?? 1} onChange={(e) => update({ maxValues: Number(e.target.value) })} /></div></Field>
         </div>
+        <label className="check-option"><input type="checkbox" checked={Boolean(component.disabled)} onChange={(e) => update({ disabled: e.target.checked })} /><span>Select deaktivieren</span></label>
         <Field label="Antwort bei Auswahl" hint="{values} enthält die ausgewählten Werte bzw. IDs."><textarea rows={3} value={component.response || ''} onChange={(e) => update({ response: e.target.value })} placeholder="z. B. ✅ Auswahl: {values}" /></Field>
         {component.kind === 'string' && <div className="nested-stack">
           <div className="component-subheading">Optionen · max. 25</div>
           {options.map((option, index) => <div className="nested-card compact" key={index}>
             <div className="nested-head"><strong>Option {index + 1}</strong><button className="icon-text-button danger" onClick={() => update({ options: options.filter((_, i) => i !== index) })}>Löschen</button></div>
             <div className="form-grid"><Field label="Label"><input value={option.label || ''} onChange={(e) => update({ options: options.map((current, i) => i === index ? { ...current, label: e.target.value } : current) })} maxLength={100} /></Field><Field label="Value"><input value={option.value || ''} onChange={(e) => update({ options: options.map((current, i) => i === index ? { ...current, value: e.target.value } : current) })} maxLength={100} /></Field></div>
-            <Field label="Beschreibung"><input value={option.description || ''} onChange={(e) => update({ options: options.map((current, i) => i === index ? { ...current, description: e.target.value } : current) })} maxLength={100} /></Field>
+            <div className="form-grid">
+              <Field label="Beschreibung"><input value={option.description || ''} onChange={(e) => update({ options: options.map((current, i) => i === index ? { ...current, description: e.target.value } : current) })} maxLength={100} /></Field>
+              <Field label="Emoji"><input value={option.emoji || ''} onChange={(e) => update({ options: options.map((current, i) => i === index ? { ...current, emoji: e.target.value } : current) })} maxLength={100} placeholder="Optional" /></Field>
+            </div>
           </div>)}
           {options.length < 25 && <button className="add-small-button" onClick={() => update({ options: [...options, { label: 'Neue Option', value: 'new_option', description: '', default: false }] })}>+ Option</button>}
         </div>}
@@ -161,11 +186,13 @@ function Preview({ data }) {
     <div className="discord-window">
       <div className="discord-user"><span className="discord-avatar">B</span><span><strong>BWW</strong><small>heute um jetzt</small></span></div>
       <div className="v2-preview" style={{ borderLeftColor: color }}>
+        {data.spoiler && <div className="soft-badge" style={{ marginBottom: 8 }}>SPOILER-CONTAINER</div>}
         {(data.components || []).map((component, index) => {
           if (component.type === 'text') return <div className="v2-preview-text" key={index}>{component.content || 'Text Display…'}</div>;
           if (component.type === 'separator') return <div className={'v2-preview-separator ' + (component.spacing === 'large' ? 'large' : '')} key={index}>{component.divider !== false && <i />}</div>;
           if (component.type === 'section') return <div className="v2-preview-section" key={index}><div>{(component.texts || []).map((text, i) => <div className="v2-preview-text" key={i}>{text || 'Text Display…'}</div>)}</div>{component.accessory?.type === 'thumbnail' && component.accessory.url && <img src={component.accessory.url} alt="" />}{component.accessory?.type === 'button' && <span className="preview-button">{component.accessory.label || 'Button'}</span>}</div>;
           if (component.type === 'media_gallery') return <div className="v2-preview-gallery" key={index}>{(component.items || []).map((item, i) => item.url ? <img src={item.url} alt="" key={i} /> : <span key={i}>Bild {i + 1}</span>)}</div>;
+          if (component.type === 'file') return <div className="nested-card compact" key={index}><strong>📎 {component.filename || 'Datei'}</strong><small>{component.description || 'File Component'}</small>{component.spoiler && <span className="soft-badge">SPOILER</span>}</div>;
           if (component.type === 'buttons') return <div className="v2-preview-buttons" key={index}>{(component.buttons || []).map((button, i) => <span className={'preview-button ' + (button.style || 'secondary')} key={i}>{button.emoji ? button.emoji + ' ' : ''}{button.label || 'Button'}</span>)}</div>;
           if (component.type === 'select') return <div className="preview-select" key={index}>{component.placeholder || 'Select Menu'} <span>⌄</span></div>;
           return null;
@@ -307,10 +334,11 @@ export default function EmbedsPage() {
               <div className="form-grid">
                 <Field label="Vorlagenname"><input value={name} onChange={(e) => setName(e.target.value)} placeholder="z. B. server-regeln" maxLength={64} /></Field>
                 <Field label="Accent Color" hint="Container-Farbe"><div className="color-row"><input value={data.color} onChange={(e) => patchData({ color: e.target.value.replace('#', '').toUpperCase().slice(0, 6) })} maxLength={6} placeholder="5865F2" /><span style={{ background: safeColor(data.color) }} /></div></Field>
+                <label className="check-option"><input type="checkbox" checked={Boolean(data.spoiler)} onChange={(e) => patchData({ spoiler: e.target.checked })} /><span>Container als Spoiler markieren</span></label>
               </div>
 
               <div className="builder-toolbar">
-                <span>Komponente hinzufügen</span>
+                <span>Komponente hinzufügen · bis zu 40</span>
                 <div className="component-add-grid">{COMPONENT_TYPES.map(([type, label, description]) => <button key={type} onClick={() => addComponent(type)} disabled={componentCount >= 40}><strong>+</strong><span><b>{label}</b><small>{description}</small></span></button>)}</div>
               </div>
 
@@ -345,7 +373,7 @@ export default function EmbedsPage() {
               <div className="card-header"><div><span className="section-kicker">LIVE PREVIEW</span><h3>Discord</h3></div><span className="soft-badge">LIVE</span></div>
               <Preview data={data} />
             </article>
-            <div className="info-card"><strong>Was jetzt unterstützt wird</strong><span>Text Displays · Sections · Thumbnails · Media Gallery · Separator · Button-Reihen · String/User/Role/Mentionable/Channel Selects. Discord unterstützt diese Nachrichtskomponenten mit IS_COMPONENTS_V2.</span></div>
+            <div className="info-card"><strong>Was jetzt unterstützt wird</strong><span>Text Displays · Sections · Thumbnails · Media Gallery · File · Separator · Button-Reihen · String/User/Role/Mentionable/Channel Selects · Spoiler. File-Komponenten werden beim Senden als echte Discord-Anhänge vorbereitet.</span></div>
           </aside>
         </section>
 
