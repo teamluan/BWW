@@ -201,6 +201,56 @@ async function markOffline(client) {
   await upsertBotStatus(client, 'offline');
 }
 
+async function getPendingDashboardActions(limit = 10) {
+  if (!isConfigured()) return [];
+  const response = await supabaseRequest(
+    `bww_dashboard_actions?select=id,guild_id,action,payload,status,created_by,created_at&status=eq.pending&order=created_at.asc&limit=${Math.max(1, Math.min(50, Number(limit) || 10))}`,
+    { headers: { Prefer: 'return=representation' } }
+  );
+  return (await response.json()) || [];
+}
+
+async function claimDashboardAction(id) {
+  if (!id || !isConfigured()) return null;
+  const response = await supabaseRequest(
+    `bww_dashboard_actions?id=eq.${encodeURIComponent(id)}&status=eq.pending`,
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({ status: 'processing' })
+    }
+  );
+  return (await response.json())?.[0] || null;
+}
+
+async function completeDashboardAction(id) {
+  if (!id || !isConfigured()) return;
+  await supabaseRequest(
+    `bww_dashboard_actions?id=eq.${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({ status: 'completed', processed_at: new Date().toISOString(), error: null })
+    }
+  );
+}
+
+async function failDashboardAction(id, error) {
+  if (!id || !isConfigured()) return;
+  await supabaseRequest(
+    `bww_dashboard_actions?id=eq.${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=minimal' },
+      body: JSON.stringify({
+        status: 'failed',
+        processed_at: new Date().toISOString(),
+        error: String(error || 'Unbekannter Fehler').slice(0, 1000)
+      })
+    }
+  );
+}
+
 module.exports = {
   DEFAULT_SETTINGS,
   isConfigured,
@@ -210,5 +260,9 @@ module.exports = {
   createDashboardCode,
   upsertBotStatus,
   syncGuilds,
-  markOffline
+  markOffline,
+  getPendingDashboardActions,
+  claimDashboardAction,
+  completeDashboardAction,
+  failDashboardAction
 };
