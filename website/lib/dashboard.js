@@ -293,3 +293,12 @@ export async function getHoneypotEvents(guildId, limit = 50) {
   );
   return (await response.json()) || [];
 }
+
+
+export async function listGiveaways(guildId, limit = 100) {
+  const response = await dbRequest(
+    `bww_giveaways?select=*&guild_id=eq.${encodeURIComponent(guildId)}&order=created_at.desc&limit=${Math.max(1, Math.min(100, Number(limit) || 100))}`,
+    { headers: { Prefer: 'return=representation' } }
+  );
+  return (await response.json()) || [];
+}
