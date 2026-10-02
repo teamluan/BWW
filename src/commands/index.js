@@ -42,12 +42,21 @@ const commands = [
   { name: 'verify', description: 'Sendet das konfigurierte Verify-System.' },
 
   { name: 'ticket', description: 'Sendet das Ticket-Panel.' },
-  { name: 'giveaway', description: 'Startet ein Giveaway.', options: [
+  { name: 'giveaway', description: 'Erstellt ein vollständiges Giveaway.', options: [
     { name: 'preis', description: 'Was wird verlost?', type: 3, required: true },
-    { name: 'dauer', description: 'Dauer in Sekunden', type: 4, required: true },
-    { name: 'gewinner', description: 'Anzahl Gewinner (Standard: 1)', type: 4, required: false }
+    { name: 'dauer', description: 'Dauer in Sekunden (5 bis 2592000)', type: 4, required: true },
+    { name: 'gewinner', description: 'Anzahl Gewinner (1-100)', type: 4, required: false },
+    { name: 'channel', description: 'Ziel-Channel (Standard: aktueller Channel)', type: 7, required: false, channel_types: [0] },
+    { name: 'pflichtrolle', description: 'Rolle, die zur Teilnahme nötig ist', type: 8, required: false },
+    { name: 'accountalter', description: 'Mindestalter des Discord-Accounts in Tagen', type: 4, required: false },
+    { name: 'serveralter', description: 'Mindestzeit auf dem Server in Tagen', type: 4, required: false },
+    { name: 'bonusrolle', description: 'Rolle für zusätzliche Gewinnchancen', type: 8, required: false },
+    { name: 'bonus', description: 'Zusätzliche Gewinnchancen für die Bonusrolle (0-20)', type: 4, required: false }
   ]},
-  { name: 'panel-create', description: 'Erstellt und sendet ein Custom-Panel mit bis zu 10 Buttons (speichern+senden).', options: panelCreateOptions },
+  { name: 'giveaway-end', description: 'Beendet ein aktives Giveaway sofort.', options: [{ name: 'id', description: 'Giveaway-ID', type: 3, required: true }]},
+  { name: 'giveaway-reroll', description: 'Zieht neue Gewinner für ein beendetes Giveaway.', options: [{ name: 'id', description: 'Giveaway-ID', type: 3, required: true }]},
+  { name: 'giveaway-cancel', description: 'Bricht ein aktives Giveaway ab.', options: [{ name: 'id', description: 'Giveaway-ID', type: 3, required: true }]},
+  { name: 'giveaway-list', description: 'Listet die letzten Giveaways dieses Servers.' },  { name: 'panel-create', description: 'Erstellt und sendet ein Custom-Panel mit bis zu 10 Buttons (speichern+senden).', options: panelCreateOptions },
   { name: 'panel-send', description: 'Sendet ein gespeichertes Panel.', options: [{ name: 'name', description: 'Panel-Name', type: 3, required: true }]},
   { name: 'panel-delete', description: 'L\u00F6scht ein gespeichertes Panel.', options: [{ name: 'name', description: 'Panel-Name', type: 3, required: true }]},
   { name: 'panel-list', description: 'Listet alle gespeicherten Panels.' },
