@@ -1,9 +1,9 @@
 const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, MessageFlags } = require('discord.js');
 const { isAllowed } = require('../commands');
-const { getGuildSettings, saveGuildSettings, createDashboardCode, findEmbedInteraction } = require('../utils/database');
+const { getGuildSettings, saveGuildSettings, createDashboardCode, findEmbedInteraction, getGiveaway, listGiveaways: listGiveawayRecords } = require('../utils/database');
 const { embedV2, verifyComponents } = require('../utils/embeds');
 const { ticketContainer, createTicket, TICKET_REASONS } = require('../utils/tickets');
-const { loadGiveaways, saveGiveaways, giveawayContainer, startGiveaway, finalizeGiveaway, rerollGiveaway, updateGiveawayMessage } = require('../utils/giveaway');
+const { giveawayContainer, startGiveaway, createGiveaway, joinGiveaway, leaveGiveaway, finalizeGiveaway, rerollGiveaway, cancelGiveaway, updateGiveawayMessage } = require('../utils/giveaway');
 const { getPanel, setPanel, deletePanel, loadPanels, panelContainer, buttonResponseContainer, addPanelMessage } = require('../utils/panels');
 const { createStatusMessage, updateStatusMessage } = require('../utils/status');
 
@@ -143,34 +143,42 @@ module.exports = async (interaction, client) => {
     return interaction.reply({ components: [container], flags: EPHEMERAL_V2, allowedMentions: { parse: [] } });
   }
   if (interaction.isButton() && interaction.customId.startsWith('bww_giveaway_')) {
-    const parts = interaction.customId.split('_'); const action = parts[2]; const id = parts.slice(3).join('_');
-    if (!['join', 'leave', 'end', 'reroll'].includes(action)) return;
-    const list = loadGiveaways(); const g = list.find(x => x.id === id);
-    if (action === 'join') {
-      if (!g || !g.active) return interaction.reply({ content: '❌ Dieses Giveaway ist bereits beendet.', ...EPHEMERAL });
-      if (g.entries.includes(interaction.user.id)) return interaction.reply({ content: '❌ Du nimmst bereits teil.', ...EPHEMERAL });
-      g.entries.push(interaction.user.id); saveGiveaways(list); await updateGiveawayMessage(client, g);
-      return interaction.reply({ content: '🎉 Du nimmst jetzt am Giveaway teil!', ...EPHEMERAL });
+    const prefixes = ['bww_giveaway_join_', 'bww_giveaway_leave_', 'bww_giveaway_end_', 'bww_giveaway_reroll_', 'bww_giveaway_cancel_'];
+    const prefix = prefixes.find((value) => interaction.customId.startsWith(value));
+    if (!prefix) return;
+    const id = interaction.customId.slice(prefix.length);
+    if (!id) return interaction.reply({ content: '❌ Ungültige Giveaway-ID.', ...EPHEMERAL });
+
+    if (prefix === 'bww_giveaway_join_') {
+      const member = interaction.member || await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+      const result = await joinGiveaway(id, member);
+      if (!result.ok) return interaction.reply({ content: '❌ ' + result.error, ...EPHEMERAL });
+      const stored = await getGiveaway(id, interaction.guildId);
+      if (stored) await updateGiveawayMessage(client, stored);
+      return interaction.reply({ content: '🎉 Du bist dabei! Deine Gewinnchance: ' + result.effectiveEntries + '.', ...EPHEMERAL });
     }
-    if (action === 'leave') {
-      if (!g || !g.active) return interaction.reply({ content: '❌ Dieses Giveaway ist bereits beendet.', ...EPHEMERAL });
-      const idx = g.entries.indexOf(interaction.user.id); if (idx === -1) return interaction.reply({ content: '❌ Du nimmst nicht an diesem Giveaway teil.', ...EPHEMERAL });
-      g.entries.splice(idx, 1); saveGiveaways(list); await updateGiveawayMessage(client, g);
-      return interaction.reply({ content: '👋 Du hast das Giveaway verlassen.', ...EPHEMERAL });
+
+    if (prefix === 'bww_giveaway_leave_') {
+      const member = interaction.member || await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+      const result = await leaveGiveaway(id, member);
+      if (!result.ok) return interaction.reply({ content: '❌ ' + result.error, ...EPHEMERAL });
+      const stored = await getGiveaway(id, interaction.guildId);
+      if (stored) await updateGiveawayMessage(client, stored);
+      return interaction.reply({ content: '👋 Du nimmst nicht mehr teil.', ...EPHEMERAL });
     }
-    if (action === 'end' || action === 'reroll') {
-      if (!hasGiveawayManagePermission(interaction, config)) return interaction.reply({ content: '❌ Du darfst das Giveaway nicht verwalten.', ...EPHEMERAL });
-      if (action === 'end') {
-        if (!g || !g.active) return interaction.reply({ content: '❌ Dieses Giveaway ist bereits beendet.', ...EPHEMERAL });
-        const winners = await finalizeGiveaway(client, g);
-        return interaction.reply({ content: winners.length ? `✅ Giveaway beendet. Gewinner: ${winners.map(w => `<@${w}>`).join(', ')}` : '✅ Giveaway beendet. Keine Teilnehmer.', ...EPHEMERAL });
-      } else {
-        const res = await rerollGiveaway(client, id);
-        if (!res.ok) return interaction.reply({ content: `❌ ${res.error}`, ...EPHEMERAL });
-        const winText = res.winners.length ? res.winners.map(w => `<@${w}>`).join(', ') : 'Keine Teilnehmer übrig 😔';
-        return interaction.reply({ content: `🔁 Neu gezogen: ${winText}`, ...EPHEMERAL });
-      }
+
+    if (!hasGiveawayManagePermission(interaction, config)) return interaction.reply({ content: '❌ Du darfst dieses Giveaway nicht verwalten.', ...EPHEMERAL });
+    if (prefix === 'bww_giveaway_end_') {
+      const winners = await finalizeGiveaway(client, { id, guild_id: interaction.guildId });
+      return interaction.reply({ content: winners.length ? '✅ Giveaway beendet. Gewinner: ' + winners.map((id) => '<@' + id + '>').join(', ') : '✅ Giveaway beendet. Keine geeigneten Teilnehmer.', ...EPHEMERAL });
     }
+    if (prefix === 'bww_giveaway_cancel_') {
+      const result = await cancelGiveaway(client, id);
+      return interaction.reply({ content: result.ok ? '✅ Giveaway abgebrochen.' : '❌ ' + result.error, ...EPHEMERAL });
+    }
+    const result = await rerollGiveaway(client, id);
+    if (!result.ok) return interaction.reply({ content: '❌ ' + result.error, ...EPHEMERAL });
+    return interaction.reply({ content: result.winners.length ? '🔁 Neue Gewinner: ' + result.winners.map((id) => '<@' + id + '>').join(', ') : '🔁 Es gibt keine weiteren geeigneten Teilnehmer.', ...EPHEMERAL });
   }
   if (interaction.isStringSelectMenu() && interaction.customId === 'bww_ticket_select') {
     const reason = TICKET_REASONS.find(r => r.value === interaction.values[0]);
