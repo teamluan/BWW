@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import DashboardShell from '../../components/dashboard-shell';
 
 const COMMANDS = [
-  'nachricht', 'embed', 'setup', 'verify', 'ticket', 'giveaway',
+  'nachricht', 'embed', 'setup', 'verify', 'ticket', 'giveaway', 'giveaway-end', 'giveaway-reroll', 'giveaway-cancel', 'giveaway-list',
   'panel-create', 'panel-send', 'panel-delete', 'panel-list',
   'panel-add-button', 'umfrage', 'setup-status', 'wartung',
   'restart', 'kick', 'ban', 'unban', 'timeout', 'giverole', 'removerole'
