@@ -400,10 +400,57 @@ module.exports = async (interaction, client) => {
   if (command === 'ticket') {
     try { await interaction.channel.send({ components: [ticketContainer(config)], flags: V2 }); return interaction.reply({ content: '✅ Ticket-Panel gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Ticket-Panel fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
   }
-  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-  if (command === 'giveaway') {
-    const prize = interaction.options.getString('preis', true); const winners = Math.max(1, interaction.options.getInteger('gewinner') || 1); const durationMs = interaction.options.getInteger('dauer') * 1000 || 60000;
-    try { await startGiveaway(interaction.channel, prize, durationMs, winners); return interaction.reply({ content: '✅ Giveaway gestartet!', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Giveaway fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
+  if (['giveaway', 'giveaway-end', 'giveaway-reroll', 'giveaway-cancel', 'giveaway-list'].includes(command)) {
+    if (!hasGiveawayManagePermission(interaction, config)) return interaction.reply({ content: '❌ Du darfst Giveaways nicht verwalten.', ...EPHEMERAL });
+
+    if (command === 'giveaway') {
+      const prize = interaction.options.getString('preis', true);
+      const durationSeconds = interaction.options.getInteger('dauer', true);
+      const winners = interaction.options.getInteger('gewinner') || 1;
+      const channel = interaction.options.getChannel('channel') || interaction.channel;
+      if (!channel?.isTextBased()) return interaction.reply({ content: '❌ Der Ziel-Channel ist nicht textbasiert.', ...EPHEMERAL });
+      const requiredRole = interaction.options.getRole('pflichtrolle');
+      const bonusRole = interaction.options.getRole('bonusrolle');
+      try {
+        const result = await createGiveaway(client, channel, {
+          prize, durationMs: durationSeconds * 1000, winnerCount: winners,
+          requiredRoleId: requiredRole?.id || '',
+          minAccountAgeDays: interaction.options.getInteger('accountalter') || 0,
+          minServerAgeDays: interaction.options.getInteger('serveralter') || 0,
+          bonusRoleId: bonusRole?.id || '',
+          bonusEntries: interaction.options.getInteger('bonus') || 0
+        }, interaction.user.id);
+        return interaction.reply({ content: '✅ Giveaway erstellt und in ' + channel + ' gesendet.\nID: `' + result.id + '`', ...EPHEMERAL });
+      } catch (error) {
+        return interaction.reply({ content: '❌ Giveaway konnte nicht erstellt werden: ' + error.message, ...EPHEMERAL });
+      }
+    }
+
+    const id = interaction.options.getString('id');
+    if (command === 'giveaway-list') {
+      const rows = await listGiveawayRecords(interaction.guildId, 25);
+      if (!rows.length) return interaction.reply({ content: '📭 Noch keine Giveaways vorhanden.', ...EPHEMERAL });
+      const lines = rows.map((row) => {
+        const status = row.status === 'active' ? '🟢' : row.status === 'ended' ? '✅' : '🚫';
+        return status + ' `' + row.id + '` — **' + row.prize + '** — ' + (row.entry_count || 0) + ' Teilnehmer';
+      });
+      const container = new ContainerBuilder().setAccentColor(0x2F3136);
+      container.addTextDisplayComponents(new TextDisplayBuilder().setContent(('## 🎉 Giveaways\n' + lines.join('\n')).slice(0, 3900)));
+      return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
+    }
+
+    if (!id) return interaction.reply({ content: '❌ Giveaway-ID fehlt.', ...EPHEMERAL });
+    if (command === 'giveaway-end') {
+      const winners = await finalizeGiveaway(client, { id, guild_id: interaction.guildId });
+      return interaction.reply({ content: winners.length ? '✅ Giveaway beendet. Gewinner: ' + winners.map((uid) => '<@' + uid + '>').join(', ') : '✅ Giveaway beendet. Keine geeigneten Teilnehmer.', ...EPHEMERAL });
+    }
+    if (command === 'giveaway-cancel') {
+      const result = await cancelGiveaway(client, id);
+      return interaction.reply({ content: result.ok ? '✅ Giveaway abgebrochen.' : '❌ ' + result.error, ...EPHEMERAL });
+    }
+    const result = await rerollGiveaway(client, id);
+    if (!result.ok) return interaction.reply({ content: '❌ ' + result.error, ...EPHEMERAL });
+    return interaction.reply({ content: result.winners.length ? '🔁 Neue Gewinner: ' + result.winners.map((uid) => '<@' + uid + '>').join(', ') : '🔁 Keine weiteren geeigneten Teilnehmer.', ...EPHEMERAL });
   }
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'verify') {
