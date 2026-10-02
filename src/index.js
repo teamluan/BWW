@@ -4,7 +4,7 @@ const { commands } = require('./commands');
 const welcome = require('./events/welcome');
 const { prepareEmbedV2 } = require('./utils/embeds');
 const interactions = require('./events/interactions');
-const { startGiveawayLoop } = require('./utils/giveaway');
+const { startGiveawayLoop, createGiveaway, finalizeGiveaway, rerollGiveaway, cancelGiveaway } = require('./utils/giveaway');
 const { updateStatusMessage, ensureStatusMessage, formatUptime } = require('./utils/status');
 const { honeypot } = require('./utils/honeypot');
 const { isConfigured: databaseConfigured, getGuildSettings, upsertBotStatus, syncGuilds, markOffline, getPendingDashboardActions, claimDashboardAction, completeDashboardAction, failDashboardAction } = require('./utils/database');
@@ -29,21 +29,40 @@ async function processDashboardActions(bot) {
     const claimed = await claimDashboardAction(action.id);
     if (!claimed) continue;
     try {
-      if (claimed.action !== 'send_embed_v2') throw new Error('Unbekannte Dashboard-Aktion.');
       const payload = claimed.payload || {};
       const guild = bot.guilds.cache.get(claimed.guild_id);
       if (!guild) throw new Error('Discord-Server ist beim Bot nicht verbunden.');
-      const channelId = String(payload.channelId || '').replace(/\D/g, '');
-      if (!channelId) throw new Error('Keine gültige Channel-ID.');
-      const channel = guild.channels.cache.get(channelId) || await guild.channels.fetch(channelId).catch(() => null);
-      if (!channel?.isTextBased()) throw new Error('Discord-Channel nicht gefunden oder nicht textbasiert.');
-      const prepared = await prepareEmbedV2(payload.data || {});
-      await channel.send({
-        components: [prepared.container],
-        files: prepared.attachments,
-        flags: MessageFlags.IsComponentsV2,
-        allowedMentions: { parse: [] }
-      });
+
+      if (claimed.action === 'send_embed_v2') {
+        const channelId = String(payload.channelId || '').replace(/\D/g, '');
+        if (!channelId) throw new Error('Keine gültige Channel-ID.');
+        const channel = guild.channels.cache.get(channelId) || await guild.channels.fetch(channelId).catch(() => null);
+        if (!channel?.isTextBased()) throw new Error('Discord-Channel nicht gefunden oder nicht textbasiert.');
+        const prepared = await prepareEmbedV2(payload.data || {});
+        await channel.send({ components: [prepared.container], files: prepared.attachments, flags: MessageFlags.IsComponentsV2, allowedMentions: { parse: [] } });
+      } else if (claimed.action === 'create_giveaway') {
+        const channelId = String(payload.channelId || '').replace(/\D/g, '');
+        if (!channelId) throw new Error('Keine gültige Giveaway-Channel-ID.');
+        const channel = guild.channels.cache.get(channelId) || await guild.channels.fetch(channelId).catch(() => null);
+        if (!channel?.isTextBased()) throw new Error('Giveaway-Channel nicht gefunden oder nicht textbasiert.');
+        await createGiveaway(bot, channel, payload.data || {}, claimed.created_by || 'dashboard');
+      } else if (claimed.action === 'end_giveaway') {
+        const id = String(payload.id || '');
+        if (!id) throw new Error('Keine Giveaway-ID.');
+        await finalizeGiveaway(bot, { id, guild_id: claimed.guild_id });
+      } else if (claimed.action === 'reroll_giveaway') {
+        const id = String(payload.id || '');
+        if (!id) throw new Error('Keine Giveaway-ID.');
+        const result = await rerollGiveaway(bot, id);
+        if (!result.ok) throw new Error(result.error);
+      } else if (claimed.action === 'cancel_giveaway') {
+        const id = String(payload.id || '');
+        if (!id) throw new Error('Keine Giveaway-ID.');
+        const result = await cancelGiveaway(bot, id);
+        if (!result.ok) throw new Error(result.error);
+      } else {
+        throw new Error('Unbekannte Dashboard-Aktion.');
+      }
       await completeDashboardAction(claimed.id);
     } catch (error) {
       console.error('[BWW] Dashboard-Aktion fehlgeschlagen:', error.message);
