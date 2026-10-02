@@ -315,6 +315,126 @@ async function recordHoneypotEvent(guildId, event = {}) {
   return (await response.json())?.[0] || null;
 }
 
+
+async function getGiveaway(id, guildId = null) {
+  if (!id || !isConfigured()) return null;
+  const filters = [
+    `id=eq.${encodeURIComponent(id)}`
+  ];
+  if (guildId) filters.push(`guild_id=eq.${encodeURIComponent(guildId)}`);
+  const response = await supabaseRequest(
+    `bww_giveaways?select=*&${filters.join('&')}&limit=1`,
+    { headers: { Prefer: 'return=representation' } }
+  );
+  return (await response.json())?.[0] || null;
+}
+
+async function listGiveaways(guildId, limit = 100) {
+  if (!guildId || !isConfigured()) return [];
+  const response = await supabaseRequest(
+    `bww_giveaways?select=*&guild_id=eq.${encodeURIComponent(guildId)}&order=created_at.desc&limit=${Math.max(1, Math.min(100, Number(limit) || 100))}`,
+    { headers: { Prefer: 'return=representation' } }
+  );
+  return (await response.json()) || [];
+}
+
+async function listActiveGiveaways(limit = 100) {
+  if (!isConfigured()) return [];
+  const response = await supabaseRequest(
+    `bww_giveaways?select=*&status=eq.active&order=end_at.asc&limit=${Math.max(1, Math.min(100, Number(limit) || 100))}`,
+    { headers: { Prefer: 'return=representation' } }
+  );
+  return (await response.json()) || [];
+}
+
+async function createGiveawayRecord(data = {}) {
+  if (!isConfigured()) throw new Error('Supabase ist nicht konfiguriert.');
+  const response = await supabaseRequest('bww_giveaways', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify(data)
+  });
+  return (await response.json())?.[0] || null;
+}
+
+async function updateGiveawayRecord(id, patch = {}) {
+  if (!id || !isConfigured()) return null;
+  const response = await supabaseRequest(
+    `bww_giveaways?id=eq.${encodeURIComponent(id)}`,
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify(patch)
+    }
+  );
+  return (await response.json())?.[0] || null;
+}
+
+async function addGiveawayEntry(giveawayId, userId, entryCount = 1) {
+  if (!giveawayId || !userId || !isConfigured()) throw new Error('Giveaway-/User-ID fehlt.');
+  const response = await supabaseRequest('bww_giveaway_entries?on_conflict=giveaway_id,user_id', {
+    method: 'POST',
+    headers: { Prefer: 'resolution=ignore-duplicates,return=representation' },
+    body: JSON.stringify({
+      giveaway_id: String(giveawayId),
+      user_id: String(userId),
+      entry_count: Math.max(1, Math.min(21, Number(entryCount) || 1))
+    })
+  });
+  return (await response.json())?.[0] || null;
+}
+
+async function removeGiveawayEntry(giveawayId, userId) {
+  if (!giveawayId || !userId || !isConfigured()) return false;
+  const response = await supabaseRequest(
+    `bww_giveaway_entries?giveaway_id=eq.${encodeURIComponent(giveawayId)}&user_id=eq.${encodeURIComponent(userId)}`,
+    { method: 'DELETE', headers: { Prefer: 'return=representation' } }
+  );
+  return (await response.json())?.length > 0;
+}
+
+async function getGiveawayEntry(giveawayId, userId) {
+  if (!giveawayId || !userId || !isConfigured()) return null;
+  const response = await supabaseRequest(
+    `bww_giveaway_entries?select=giveaway_id,user_id,entry_count,entered_at&giveaway_id=eq.${encodeURIComponent(giveawayId)}&user_id=eq.${encodeURIComponent(userId)}&limit=1`,
+    { headers: { Prefer: 'return=representation' } }
+  );
+  return (await response.json())?.[0] || null;
+}
+
+async function listGiveawayEntries(giveawayId) {
+  if (!giveawayId || !isConfigured()) return [];
+  const response = await supabaseRequest(
+    `bww_giveaway_entries?select=user_id,entry_count,entered_at&giveaway_id=eq.${encodeURIComponent(giveawayId)}&order=entered_at.asc`,
+    { headers: { Prefer: 'return=representation' } }
+  );
+  return (await response.json()) || [];
+}
+
+async function recordGiveawayWinner(giveawayId, userId, drawType, drawNumber) {
+  if (!giveawayId || !userId || !isConfigured()) return null;
+  const response = await supabaseRequest('bww_giveaway_winners', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({
+      giveaway_id: String(giveawayId),
+      user_id: String(userId),
+      draw_type: drawType === 'reroll' ? 'reroll' : 'initial',
+      draw_number: Math.max(1, Number(drawNumber) || 1)
+    })
+  });
+  return (await response.json())?.[0] || null;
+}
+
+async function listGiveawayWinnerHistory(giveawayId) {
+  if (!giveawayId || !isConfigured()) return [];
+  const response = await supabaseRequest(
+    `bww_giveaway_winners?select=user_id,draw_type,draw_number,created_at&giveaway_id=eq.${encodeURIComponent(giveawayId)}&order=created_at.asc`,
+    { headers: { Prefer: 'return=representation' } }
+  );
+  return (await response.json()) || [];
+}
+
 async function getHoneypotEvents(guildId, limit = 50) {
   if (!guildId || !isConfigured()) return [];
   const response = await supabaseRequest(
@@ -340,5 +460,16 @@ module.exports = {
   failDashboardAction,
   findEmbedInteraction,
   recordHoneypotEvent,
-  getHoneypotEvents
+  getHoneypotEvents,
+  getGiveaway,
+  listGiveaways,
+  listActiveGiveaways,
+  createGiveawayRecord,
+  updateGiveawayRecord,
+  addGiveawayEntry,
+  removeGiveawayEntry,
+  getGiveawayEntry,
+  listGiveawayEntries,
+  recordGiveawayWinner,
+  listGiveawayWinnerHistory
 };
