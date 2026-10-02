@@ -3,7 +3,7 @@ const { isAllowed } = require('../commands');
 const { getGuildSettings, saveGuildSettings, createDashboardCode, findEmbedInteraction, getGiveaway, listGiveaways: listGiveawayRecords } = require('../utils/database');
 const { embedV2, verifyComponents } = require('../utils/embeds');
 const { ticketContainer, createTicket, TICKET_REASONS } = require('../utils/tickets');
-const { giveawayContainer, startGiveaway, createGiveaway, joinGiveaway, leaveGiveaway, finalizeGiveaway, rerollGiveaway, cancelGiveaway, updateGiveawayMessage } = require('../utils/giveaway');
+const { createGiveaway, joinGiveaway, leaveGiveaway, finalizeGiveaway, rerollGiveaway, cancelGiveaway, updateGiveawayMessage } = require('../utils/giveaway');
 const { getPanel, setPanel, deletePanel, loadPanels, panelContainer, buttonResponseContainer, addPanelMessage } = require('../utils/panels');
 const { createStatusMessage, updateStatusMessage } = require('../utils/status');
 
