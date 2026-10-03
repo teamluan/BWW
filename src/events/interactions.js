@@ -373,7 +373,7 @@ module.exports = async (interaction, client) => {
         return interaction.reply({ content: '❌ Ticket-Panel fehlgeschlagen: ' + err.message, ...EPHEMERAL });
       }
     }
-    if (!hasTicketManagePermission(interaction, config)) return interaction.reply({ content: '❌ Nur das Support-Team darf Tickets verwalten.', ...EPHEMERAL });
+    if (!hasTicketManagePermission(interaction, config) && command !== 'ticket-close') return interaction.reply({ content: '❌ Nur das Support-Team darf Tickets verwalten.', ...EPHEMERAL });
     if (command === 'ticket-list') {
       const status = interaction.options.getString('status') || null;
       const rows = await require('../utils/database').listTickets(interaction.guildId, 25, status);
@@ -393,7 +393,11 @@ module.exports = async (interaction, client) => {
       return interaction.reply({ content: result.ok ? '✅ Ticket wieder geöffnet: ' + result.channel : '❌ ' + result.error, ...EPHEMERAL });
     }
     if (!id) return interaction.reply({ content: '❌ Keine Ticket-ID angegeben und der aktuelle Channel ist kein Ticket.', ...EPHEMERAL });
-    if (command === 'ticket-close') return interaction.showModal(buildCloseModal(id));
+    if (command === 'ticket-close') {
+      const ticket = await require('../utils/database').getTicket(id, interaction.guildId);
+      if (!ticket || !canManageTicket(interaction.member, config, ticket)) return interaction.reply({ content: '❌ Du darfst dieses Ticket nicht schließen.', ...EPHEMERAL });
+      return interaction.showModal(buildCloseModal(id));
+    }
     if (command === 'ticket-claim') {
       const result = await claimTicket(client, id, interaction.member);
       return interaction.reply({ content: result.ok ? (result.claimed ? '✅ Ticket übernommen.' : '↩️ Ticket-Zuweisung entfernt.') : '❌ ' + result.error, ...EPHEMERAL });
