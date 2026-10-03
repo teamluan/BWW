@@ -27,6 +27,8 @@ export default function TicketsPage() {
   const [tickets, setTickets] = useState([]);
   const [filter, setFilter] = useState('all');
   const [error, setError] = useState('');
+  const [busy, setBusy] = useState('');
+  const [notice, setNotice] = useState('');
 
   async function load(showLoading = false) {
     if (showLoading) setMode('loading');
@@ -55,6 +57,31 @@ export default function TicketsPage() {
     return () => clearInterval(timer);
   }, [filter]);
 
+  async function action(ticketId, actionName, extra = {}) {
+    setBusy(ticketId + ':' + actionName);
+    setError('');
+    setNotice('');
+    try {
+      const response = await fetch('/api/dashboard/tickets', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ id: ticketId, action: actionName, ...extra })
+      });
+      const data = await response.json().catch(() => ({}));
+      if (response.status === 401) {
+        window.location.replace('/');
+        return;
+      }
+      if (!response.ok) throw new Error(data.error || 'Ticket-Aktion fehlgeschlagen.');
+      setNotice('✅ Ticket-Aktion in die Bot-Warteschlange gestellt.');
+      await load(false);
+    } catch (err) {
+      setError(err.message || 'Ticket-Aktion fehlgeschlagen.');
+    } finally {
+      setBusy('');
+    }
+  }
+
   const stats = useMemo(() => ({
     open: tickets.filter((ticket) => ticket.status === 'open').length,
     locked: tickets.filter((ticket) => ticket.status === 'locked').length,
@@ -77,6 +104,7 @@ export default function TicketsPage() {
         </header>
 
         {error && <div className="alert error">{error}</div>}
+        {notice && <div className="alert success">{notice}</div>}
 
         <div className="stats-grid">
           <div className="surface-card stat-card"><span className="section-kicker">OFFEN</span><strong>{stats.open}</strong><small>Tickets warten auf Bearbeitung</small></div>
@@ -113,6 +141,39 @@ export default function TicketsPage() {
                     <div className="server-details">
                       <strong>{ticket.status === 'closed' ? 'Geschlossen' : 'Letzte Änderung'}</strong>
                       <span>{formatDate(ticket.status === 'closed' ? ticket.closed_at : ticket.updated_at)}</span>
+                    </div>
+                    <div className="row-actions">
+                      {ticket.status === 'closed' ? (
+                        <button className="button-secondary" disabled={busy === ticket.id + ':reopen'} onClick={() => action(ticket.id, 'reopen')}>
+                          {busy === ticket.id + ':reopen' ? '…' : 'Wieder öffnen'}
+                        </button>
+                      ) : (
+                        <>
+                          <button className="button-secondary" disabled={busy === ticket.id + ':claim'} onClick={() => action(ticket.id, 'claim')}>
+                            {busy === ticket.id + ':claim' ? '…' : 'Claim'}
+                          </button>
+                          <button className="button-secondary" disabled={busy === ticket.id + ':lock' || ticket.status === 'locked'} onClick={() => action(ticket.id, 'lock')}>
+                            {ticket.status === 'locked' ? 'Gesperrt' : 'Sperren'}
+                          </button>
+                          {ticket.status === 'locked' && (
+                            <button className="button-secondary" disabled={busy === ticket.id + ':unlock'} onClick={() => action(ticket.id, 'unlock')}>Entsperren</button>
+                          )}
+                          <button className="button-danger" disabled={busy === ticket.id + ':close'} onClick={() => action(ticket.id, 'close')}>
+                            {busy === ticket.id + ':close' ? '…' : 'Schließen'}
+                          </button>
+                        </>
+                      )}
+                      <select
+                        value={ticket.priority || 'normal'}
+                        disabled={busy === ticket.id + ':priority'}
+                        onChange={(e) => action(ticket.id, 'priority', { priority: e.target.value })}
+                        aria-label={'Priorität für ' + ticket.id}
+                      >
+                        <option value="low">Niedrig</option>
+                        <option value="normal">Normal</option>
+                        <option value="high">Hoch</option>
+                        <option value="urgent">Dringend</option>
+                      </select>
                     </div>
                   </div>
                 );
