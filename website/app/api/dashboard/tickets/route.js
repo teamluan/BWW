@@ -53,7 +53,7 @@ export async function PATCH(request) {
       priority: 'ticket_priority'
     }[action];
 
-    const queued = await queueDashboardAction(session.guildId, mapped, payload, session.id);
+    const queued = await queueDashboardAction(session.guildId, mapped, payload, session.actorId || session.id);
     return NextResponse.json({ ok: true, queued: Boolean(queued), action: mapped, ticketId: id });
   } catch (error) {
     return NextResponse.json({ ok: false, error: error.message || 'Ticket-Aktion konnte nicht angelegt werden.' }, { status: 500 });
