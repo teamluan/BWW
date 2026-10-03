@@ -16,13 +16,6 @@ function hasGiveawayManagePermission(interaction, config) {
   const roles = config.permissions['giveaway'] || [];
   return roles.some(id => interaction.member?.roles?.cache?.has(id));
 }
-function canCloseTicket(interaction, config) {
-  if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return true;
-  if (config.ticket.roleId && interaction.member?.roles?.cache?.has(config.ticket.roleId)) return true;
-  if (interaction.channel?.name?.startsWith('ticket-') && interaction.channel?.permissionOverwrites?.cache?.has(interaction.user.id)) return true;
-  return false;
-}
-
 function hasTicketManagePermission(interaction, config) {
   if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return true;
   const roles = config.permissions.ticket || [];
@@ -140,26 +133,20 @@ module.exports = async (interaction, client) => {
     try { await interaction.member.roles.add(role); } catch { return interaction.reply({ content: '❌ Ich konnte die Rolle nicht vergeben. Prüfe meine Rollenposition.', ...EPHEMERAL }); }
     return interaction.reply({ content: '✅ Du wurdest erfolgreich verifiziert.', ...EPHEMERAL });
   }
-  if (interaction.isButton() && (
-    interaction.customId.startsWith('bww_ticket_') ||
-    interaction.customId === 'bww_ticket_close'
-  )) {
+  if (interaction.isButton() && (interaction.customId === 'bww_ticket_close' || interaction.customId.startsWith('bww_ticket_'))) {
     const customId = interaction.customId;
-
     if (customId === 'bww_ticket_close') {
-      const ticket = await require('../utils/database').getTicketByChannel(interaction.channelId, interaction.guildId);
+      const ticket = await getTicketByChannel(interaction.channelId, interaction.guildId);
       if (!ticket) return interaction.reply({ content: '❌ Dieses Ticket ist nicht registriert.', ...EPHEMERAL });
       if (!canManageTicket(interaction.member, config, ticket)) return interaction.reply({ content: '❌ Du darfst dieses Ticket nicht schließen.', ...EPHEMERAL });
       return interaction.showModal(buildCloseModal(ticket.id));
     }
-
     const match = customId.match(/^bww_ticket_(claim|close|add|remove|rename|lock|unlock|reopen)_([A-Za-z0-9-]+)$/);
     if (!match) return;
     const action = match[1];
     const ticketId = match[2];
     const ticket = await require('../utils/database').getTicket(ticketId, interaction.guildId);
     if (!ticket) return interaction.reply({ content: '❌ Ticket nicht gefunden.', ...EPHEMERAL });
-
     if (action === 'close') {
       if (!canManageTicket(interaction.member, config, ticket)) return interaction.reply({ content: '❌ Du darfst dieses Ticket nicht schließen.', ...EPHEMERAL });
       return interaction.showModal(buildCloseModal(ticket.id));
@@ -167,7 +154,6 @@ module.exports = async (interaction, client) => {
     if (!hasTicketManagePermission(interaction, config) && action !== 'reopen') {
       return interaction.reply({ content: '❌ Nur das Support-Team darf diese Ticket-Aktion ausführen.', ...EPHEMERAL });
     }
-
     if (action === 'claim') {
       const result = await claimTicket(client, ticket.id, interaction.member);
       return interaction.reply({ content: result.ok ? (result.claimed ? '✅ Ticket wurde dir zugewiesen.' : '↩️ Ticket-Zuweisung entfernt.') : '❌ ' + result.error, ...EPHEMERAL });
@@ -184,14 +170,111 @@ module.exports = async (interaction, client) => {
       return interaction.reply({ content: result.ok ? '✅ Ticket wieder geöffnet: ' + result.channel : '❌ ' + result.error, ...EPHEMERAL });
     }
   }
+  if (interaction.isButton() && interaction.customId.startsWith('bww_panel_')) {
+    const parts = interaction.customId.split('_');
+    const idx = parseInt(parts.pop(), 10);
+    const name = parts.slice(2).join('_');
+    const panel = getPanel(name);
+    if (!panel || !panel.buttons[idx]) return interaction.reply({ content: '❌ Panel oder Button nicht gefunden.', ...EPHEMERAL });
+    const button = panel.buttons[idx];
+    const container = buttonResponseContainer(name, button);
+    return interaction.reply({ components: [container], flags: EPHEMERAL_V2, allowedMentions: { parse: [] } });
+  }
+  if (interaction.isButton() && interaction.customId.startsWith('bww_giveaway_')) {
+    const prefixes = ['bww_giveaway_join_', 'bww_giveaway_leave_', 'bww_giveaway_end_', 'bww_giveaway_reroll_', 'bww_giveaway_cancel_'];
+    const prefix = prefixes.find((value) => interaction.customId.startsWith(value));
+    if (!prefix) return;
+    const id = interaction.customId.slice(prefix.length);
+    if (!id) return interaction.reply({ content: '❌ Ungültige Giveaway-ID.', ...EPHEMERAL });
 
+    if (prefix === 'bww_giveaway_join_') {
+      const member = interaction.member || await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+      const result = await joinGiveaway(id, member);
+      if (!result.ok) return interaction.reply({ content: '❌ ' + result.error, ...EPHEMERAL });
+      const stored = await getGiveaway(id, interaction.guildId);
+      if (stored) await updateGiveawayMessage(client, stored);
+      return interaction.reply({ content: '🎉 Du bist dabei! Deine Gewinnchance: ' + result.effectiveEntries + '.', ...EPHEMERAL });
+    }
+
+    if (prefix === 'bww_giveaway_leave_') {
+      const member = interaction.member || await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
+      const result = await leaveGiveaway(id, member);
+      if (!result.ok) return interaction.reply({ content: '❌ ' + result.error, ...EPHEMERAL });
+      const stored = await getGiveaway(id, interaction.guildId);
+      if (stored) await updateGiveawayMessage(client, stored);
+      return interaction.reply({ content: '👋 Du nimmst nicht mehr teil.', ...EPHEMERAL });
+    }
+
+    if (!hasGiveawayManagePermission(interaction, config)) return interaction.reply({ content: '❌ Du darfst dieses Giveaway nicht verwalten.', ...EPHEMERAL });
+    if (prefix === 'bww_giveaway_end_') {
+      const winners = await finalizeGiveaway(client, { id, guild_id: interaction.guildId });
+      return interaction.reply({ content: winners.length ? '✅ Giveaway beendet. Gewinner: ' + winners.map((id) => '<@' + id + '>').join(', ') : '✅ Giveaway beendet. Keine geeigneten Teilnehmer.', ...EPHEMERAL });
+    }
+    if (prefix === 'bww_giveaway_cancel_') {
+      const result = await cancelGiveaway(client, id);
+      return interaction.reply({ content: result.ok ? '✅ Giveaway abgebrochen.' : '❌ ' + result.error, ...EPHEMERAL });
+    }
+    const result = await rerollGiveaway(client, id);
+    if (!result.ok) return interaction.reply({ content: '❌ ' + result.error, ...EPHEMERAL });
+    return interaction.reply({ content: result.winners.length ? '🔁 Neue Gewinner: ' + result.winners.map((id) => '<@' + id + '>').join(', ') : '🔁 Es gibt keine weiteren geeigneten Teilnehmer.', ...EPHEMERAL });
+  }
   if (interaction.isStringSelectMenu() && interaction.customId.startsWith('bww_ticket_priority_')) {
     const ticketId = interaction.customId.slice('bww_ticket_priority_'.length);
     const priority = interaction.values?.[0];
     const result = await setTicketPriority(client, ticketId, interaction.member, priority);
     return interaction.reply({ content: result.ok ? '⭐ Priorität auf ' + (PRIORITIES[priority]?.label || priority) + ' gesetzt.' : '❌ ' + result.error, ...EPHEMERAL });
   }
-
+  if (interaction.isStringSelectMenu() && interaction.customId === 'bww_ticket_select') {
+    const reason = TICKET_REASONS.find(r => r.value === interaction.values[0]);
+    if (!reason) return interaction.reply({ content: '❌ Ungültiger Ticket-Grund.', ...EPHEMERAL });
+    const modal = new ModalBuilder()
+      .setCustomId('bww_ticket_create_modal_' + reason.value)
+      .setTitle(reason.label + ' – Anliegen')
+      .addComponents(new ActionRowBuilder().addComponents(
+        new TextInputBuilder()
+          .setCustomId('description')
+          .setLabel('Beschreibe kurz dein Anliegen')
+          .setStyle(TextInputStyle.Paragraph)
+          .setRequired(true)
+          .setMinLength(5)
+          .setMaxLength(3000)
+          .setPlaceholder('Was ist passiert und wobei brauchst du Hilfe?')
+      ));
+    return interaction.showModal(modal);
+  }
+  if (interaction.isModalSubmit() && interaction.customId.startsWith('bww_ticket_')) {
+    const match = interaction.customId.match(/^bww_ticket_(create|close|add|remove|rename)_modal_([A-Za-z0-9-]+)$/);
+    if (!match) return;
+    const action = match[1];
+    const ticketId = match[2];
+    if (action === 'create') {
+      const reason = TICKET_REASONS.find((item) => item.value === ticketId);
+      const description = interaction.fields.getTextInputValue('description');
+      const result = await createTicket(interaction.guild, config, interaction.user, reason?.label || ticketId, description);
+      return interaction.reply({ content: result.ok ? '✅ Ticket erstellt: ' + result.channel + ' · ID: ' + result.ticketId : '❌ ' + result.error, ...EPHEMERAL });
+    }
+    const ticket = await require('../utils/database').getTicket(ticketId, interaction.guildId);
+    if (!ticket) return interaction.reply({ content: '❌ Ticket nicht gefunden.', ...EPHEMERAL });
+    if (action === 'close') {
+      if (!canManageTicket(interaction.member, config, ticket)) return interaction.reply({ content: '❌ Du darfst dieses Ticket nicht schließen.', ...EPHEMERAL });
+      const reason = interaction.fields.getTextInputValue('reason') || 'Kein Grund angegeben';
+      const result = await closeTicket(client, ticket.id, interaction.member, reason);
+      return interaction.reply({ content: result.ok ? '✅ Ticket geschlossen.' + (result.deleted ? ' Der Channel wird gelöscht.' : '') : '❌ ' + result.error, ...EPHEMERAL });
+    }
+    if (!hasTicketManagePermission(interaction, config)) return interaction.reply({ content: '❌ Nur das Support-Team darf diese Ticket-Aktion ausführen.', ...EPHEMERAL });
+    if (action === 'add' || action === 'remove') {
+      const targetId = interaction.fields.getTextInputValue('user_id');
+      const result = action === 'add'
+        ? await addTicketMember(client, ticket.id, interaction.member, targetId)
+        : await removeTicketMember(client, ticket.id, interaction.member, targetId);
+      return interaction.reply({ content: result.ok ? (action === 'add' ? '✅ Benutzer zum Ticket hinzugefügt.' : '✅ Benutzer aus dem Ticket entfernt.') : '❌ ' + result.error, ...EPHEMERAL });
+    }
+    if (action === 'rename') {
+      const name = interaction.fields.getTextInputValue('name');
+      const result = await renameTicket(client, ticket.id, interaction.member, name);
+      return interaction.reply({ content: result.ok ? '✅ Ticket umbenannt: ' + result.name : '❌ ' + result.error, ...EPHEMERAL });
+    }
+  }
   if (!interaction.isChatInputCommand()) return;
   const command = interaction.commandName;
   if (command.startsWith('setup-')) {
@@ -271,6 +354,18 @@ module.exports = async (interaction, client) => {
   }
   if (command === 'wartung') {
     if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
+    const aktiv = interaction.options.getBoolean('aktiv', true);
+    const grund = interaction.options.getString('grund') || '';
+    const mode = aktiv ? 'maintenance' : 'online';
+    config.status = config.status || {};
+    config.status.mode = mode;
+    await saveGuildSettings(interaction.guildId, config, interaction.user.id);
+    const ok = await updateStatusMessage(client, interaction.guildId, mode, { reason: grund });
+    return interaction.reply({ content: ok ? `${aktiv ? '🟡 Wartung aktiviert' : '🟢 Wartung deaktiviert'}${grund ? ': ' + grund : ''}` : `✅ Modus auf ${mode} gesetzt (kein Status-Channel konfiguriert).`, ...EPHEMERAL });
+  }
+  if (command.startsWith('ticket')) {
+    if (command === 'ticket') {
+      if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
       try {
         await interaction.channel.send({ components: [ticketPanel(config)], flags: V2 });
         return interaction.reply({ content: '✅ Ticket-Panel gesendet.', ...EPHEMERAL });
@@ -278,48 +373,37 @@ module.exports = async (interaction, client) => {
         return interaction.reply({ content: '❌ Ticket-Panel fehlgeschlagen: ' + err.message, ...EPHEMERAL });
       }
     }
-
     if (!hasTicketManagePermission(interaction, config)) return interaction.reply({ content: '❌ Nur das Support-Team darf Tickets verwalten.', ...EPHEMERAL });
-
     if (command === 'ticket-list') {
       const status = interaction.options.getString('status') || null;
       const rows = await require('../utils/database').listTickets(interaction.guildId, 25, status);
       if (!rows.length) return interaction.reply({ content: '📭 Keine Tickets gefunden.', ...EPHEMERAL });
       const lines = rows.map((row) => {
         const icon = row.status === 'open' ? '🟢' : row.status === 'locked' ? '🔒' : '✅';
-        return icon + ' ' + row.id + ' — ' + row.reason + ' — <@' + row.owner_id + '>' +
-          (row.claimed_by ? ' — 👤 <@' + row.claimed_by + '>' : '');
+        return icon + ' ' + row.id + ' — ' + row.reason + ' — <@' + row.owner_id + '>' + (row.claimed_by ? ' — 👤 <@' + row.claimed_by + '>' : '');
       });
       const container = new ContainerBuilder().setAccentColor(0x2F3136);
-      container.addTextDisplayComponents(new TextDisplayBuilder().setContent(('## 🎫 Tickets (' + rows.length + ')\\n' + lines.join('\\n')).slice(0, 3900)));
+      container.addTextDisplayComponents(new TextDisplayBuilder().setContent(('## 🎫 Tickets (' + rows.length + ')\n' + lines.join('\n')).slice(0, 3900)));
       return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
     }
-
     const id = await resolveTicketId(interaction, interaction.options.getString('id'));
-
     if (command === 'ticket-reopen') {
       if (!id) return interaction.reply({ content: '❌ Eine Ticket-ID ist erforderlich.', ...EPHEMERAL });
       const result = await reopenTicket(client, id, interaction.member);
       return interaction.reply({ content: result.ok ? '✅ Ticket wieder geöffnet: ' + result.channel : '❌ ' + result.error, ...EPHEMERAL });
     }
-
     if (!id) return interaction.reply({ content: '❌ Keine Ticket-ID angegeben und der aktuelle Channel ist kein Ticket.', ...EPHEMERAL });
-
-    if (command === 'ticket-close') {
-      return interaction.showModal(buildCloseModal(id));
-    }
+    if (command === 'ticket-close') return interaction.showModal(buildCloseModal(id));
     if (command === 'ticket-claim') {
       const result = await claimTicket(client, id, interaction.member);
       return interaction.reply({ content: result.ok ? (result.claimed ? '✅ Ticket übernommen.' : '↩️ Ticket-Zuweisung entfernt.') : '❌ ' + result.error, ...EPHEMERAL });
     }
     if (command === 'ticket-add') {
-      const user = interaction.options.getUser('user', true);
-      const result = await addTicketMember(client, id, interaction.member, user.id);
+      const result = await addTicketMember(client, id, interaction.member, interaction.options.getUser('user', true).id);
       return interaction.reply({ content: result.ok ? '✅ Benutzer hinzugefügt.' : '❌ ' + result.error, ...EPHEMERAL });
     }
     if (command === 'ticket-remove') {
-      const user = interaction.options.getUser('user', true);
-      const result = await removeTicketMember(client, id, interaction.member, user.id);
+      const result = await removeTicketMember(client, id, interaction.member, interaction.options.getUser('user', true).id);
       return interaction.reply({ content: result.ok ? '✅ Benutzer entfernt.' : '❌ ' + result.error, ...EPHEMERAL });
     }
     if (command === 'ticket-rename') {
@@ -334,17 +418,6 @@ module.exports = async (interaction, client) => {
       const result = await lockTicket(client, id, interaction.member, command === 'ticket-lock');
       return interaction.reply({ content: result.ok ? (command === 'ticket-lock' ? '🔐 Ticket gesperrt.' : '🔓 Ticket entsperrt.') : '❌ ' + result.error, ...EPHEMERAL });
     }
-  }
-
-  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-    const aktiv = interaction.options.getBoolean('aktiv', true);
-    const grund = interaction.options.getString('grund') || '';
-    const mode = aktiv ? 'maintenance' : 'online';
-    config.status = config.status || {};
-    config.status.mode = mode;
-    await saveGuildSettings(interaction.guildId, config, interaction.user.id);
-    const ok = await updateStatusMessage(client, interaction.guildId, mode, { reason: grund });
-    return interaction.reply({ content: ok ? `${aktiv ? '🟡 Wartung aktiviert' : '🟢 Wartung deaktiviert'}${grund ? ': ' + grund : ''}` : `✅ Modus auf ${mode} gesetzt (kein Status-Channel konfiguriert).`, ...EPHEMERAL });
   }
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'panel-create') {
@@ -416,74 +489,6 @@ module.exports = async (interaction, client) => {
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent(`## Gespeicherte Panels (${names.length})\n${lines}`));
     return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
   }
-  if (command.startsWith('ticket')) {
-    if (command === 'ticket') {
-      if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-      try {
-        await interaction.channel.send({ components: [ticketPanel(config)], flags: V2 });
-        return interaction.reply({ content: '✅ Ticket-Panel gesendet.', ...EPHEMERAL });
-      } catch (err) {
-        return interaction.reply({ content: '❌ Ticket-Panel fehlgeschlagen: ' + err.message, ...EPHEMERAL });
-      }
-    }
-
-    if (!hasTicketManagePermission(interaction, config)) return interaction.reply({ content: '❌ Nur das Support-Team darf Tickets verwalten.', ...EPHEMERAL });
-
-    if (command === 'ticket-list') {
-      const status = interaction.options.getString('status') || null;
-      const rows = await require('../utils/database').listTickets(interaction.guildId, 25, status);
-      if (!rows.length) return interaction.reply({ content: '📭 Keine Tickets gefunden.', ...EPHEMERAL });
-      const lines = rows.map((row) => {
-        const icon = row.status === 'open' ? '🟢' : row.status === 'locked' ? '🔒' : '✅';
-        return icon + ' ' + row.id + ' — ' + row.reason + ' — <@' + row.owner_id + '>' +
-          (row.claimed_by ? ' — 👤 <@' + row.claimed_by + '>' : '');
-      });
-      const container = new ContainerBuilder().setAccentColor(0x2F3136);
-      container.addTextDisplayComponents(new TextDisplayBuilder().setContent(('## 🎫 Tickets (' + rows.length + ')\\n' + lines.join('\\n')).slice(0, 3900)));
-      return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
-    }
-
-    const id = await resolveTicketId(interaction, interaction.options.getString('id'));
-
-    if (command === 'ticket-reopen') {
-      if (!id) return interaction.reply({ content: '❌ Eine Ticket-ID ist erforderlich.', ...EPHEMERAL });
-      const result = await reopenTicket(client, id, interaction.member);
-      return interaction.reply({ content: result.ok ? '✅ Ticket wieder geöffnet: ' + result.channel : '❌ ' + result.error, ...EPHEMERAL });
-    }
-
-    if (!id) return interaction.reply({ content: '❌ Keine Ticket-ID angegeben und der aktuelle Channel ist kein Ticket.', ...EPHEMERAL });
-
-    if (command === 'ticket-close') {
-      return interaction.showModal(buildCloseModal(id));
-    }
-    if (command === 'ticket-claim') {
-      const result = await claimTicket(client, id, interaction.member);
-      return interaction.reply({ content: result.ok ? (result.claimed ? '✅ Ticket übernommen.' : '↩️ Ticket-Zuweisung entfernt.') : '❌ ' + result.error, ...EPHEMERAL });
-    }
-    if (command === 'ticket-add') {
-      const user = interaction.options.getUser('user', true);
-      const result = await addTicketMember(client, id, interaction.member, user.id);
-      return interaction.reply({ content: result.ok ? '✅ Benutzer hinzugefügt.' : '❌ ' + result.error, ...EPHEMERAL });
-    }
-    if (command === 'ticket-remove') {
-      const user = interaction.options.getUser('user', true);
-      const result = await removeTicketMember(client, id, interaction.member, user.id);
-      return interaction.reply({ content: result.ok ? '✅ Benutzer entfernt.' : '❌ ' + result.error, ...EPHEMERAL });
-    }
-    if (command === 'ticket-rename') {
-      const result = await renameTicket(client, id, interaction.member, interaction.options.getString('name', true));
-      return interaction.reply({ content: result.ok ? '✅ Ticket umbenannt: ' + result.name : '❌ ' + result.error, ...EPHEMERAL });
-    }
-    if (command === 'ticket-priority') {
-      const result = await setTicketPriority(client, id, interaction.member, interaction.options.getString('priority', true));
-      return interaction.reply({ content: result.ok ? '⭐ Priorität gesetzt.' : '❌ ' + result.error, ...EPHEMERAL });
-    }
-    if (command === 'ticket-lock' || command === 'ticket-unlock') {
-      const result = await lockTicket(client, id, interaction.member, command === 'ticket-lock');
-      return interaction.reply({ content: result.ok ? (command === 'ticket-lock' ? '🔐 Ticket gesperrt.' : '🔓 Ticket entsperrt.') : '❌ ' + result.error, ...EPHEMERAL });
-    }
-  }
-
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
   if (command === 'kick') {
     const member = interaction.options.getMember('user'); const reason = interaction.options.getString('grund') || 'Kein Grund angegeben';
@@ -612,7 +617,9 @@ module.exports = async (interaction, client) => {
   }
   if (command === 'setup') {
     const container = new ContainerBuilder().setAccentColor(0x2F3136);
-    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## BWW Setup\n`/setup-welcome` [channel] [text] [title?] → Welcome\n`/setup-verify` → Verify\n`/setup-ticket` [kategorie] [rolle] → Ticket\n`/setup-honeypot` → Honeypot\n`/setup-status` [channel] → Status-Embed\n`/setup-permission` → Command-Berechtigungen\n`/restart` → Bot neu starten\n`/dashboard-code` → Web-Dashboard-Zugang erzeugen\n`/wartung` → Wartung an/aus\n`/panel-create` → Custom Panel (10 Buttons) speichern+senden\n`/panel-add-button` → Button hinzufügen\n`/panel-send`/`/panel-delete`/`/panel-list` → Panels verwalten\n`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n`/giverole`, `/removerole` → Rollen'));
+    container.addTextDisplayComponents(new TextDisplayBuilder().setContent('## BWW Setup\n`/setup-welcome` [channel] [text] [title?] → Welcome\n`/setup-verify` → Verify\n`/setup-ticket` → Ticket-System konfigurieren
+`/ticket` → Ticket-Panel
+`/ticket-list`/`/ticket-claim`/`/ticket-close`/`/ticket-reopen` → Tickets verwalten\n`/setup-honeypot` → Honeypot\n`/setup-status` [channel] → Status-Embed\n`/setup-permission` → Command-Berechtigungen\n`/restart` → Bot neu starten\n`/dashboard-code` → Web-Dashboard-Zugang erzeugen\n`/wartung` → Wartung an/aus\n`/panel-create` → Custom Panel (10 Buttons) speichern+senden\n`/panel-add-button` → Button hinzufügen\n`/panel-send`/`/panel-delete`/`/panel-list` → Panels verwalten\n`/kick`, `/ban`, `/unban`, `/timeout` → Moderation\n`/giverole`, `/removerole` → Rollen'));
     container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
     container.addTextDisplayComponents(new TextDisplayBuilder().setContent('**Welcome-Platzhalter:**\n`{user}` → Ping\n`{username}` → Name\n`{displayname}` → Server-Nickname\n`{server}` → Servername\n`{id}` → User-ID\n`{count}` → Mitgliederzahl\n\nDer Avatar des Users erscheint automatisch oben rechts.'));
     return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
