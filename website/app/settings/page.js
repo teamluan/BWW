@@ -135,11 +135,20 @@ export default function SettingsPage() {
               <label className="form-field"><span>Text</span><textarea value={settings.verify.message} onChange={(e) => patch('verify', 'message', e.target.value)} rows={4} /></label>
             </SettingsCard>
 
-            <SettingsCard kicker="TICKETS" title="Ticket-System" description="Definiere Kategorie und Support-Rolle für neue Tickets." active={settings.ticket.enabled} onToggle={() => patch('ticket', 'enabled', !settings.ticket.enabled)}>
+            <SettingsCard kicker="TICKETS" title="Ticket-System" description="Definiere Kategorie, Support-Rolle, Logs und das Verhalten beim Schließen." active={settings.ticket.enabled} onToggle={() => patch('ticket', 'enabled', !settings.ticket.enabled)}>
               <div className="form-grid">
                 <label><span>Kategorie-ID</span><input value={settings.ticket.categoryId} onChange={(e) => patch('ticket', 'categoryId', e.target.value)} placeholder="Discord Kategorie-ID" /></label>
                 <label><span>Support-Rollen-ID</span><input value={settings.ticket.roleId} onChange={(e) => patch('ticket', 'roleId', e.target.value)} placeholder="Discord Rollen-ID" /></label>
               </div>
+              <div className="form-grid">
+                <label><span>Log-Channel-ID</span><input value={settings.ticket.logChannelId || ''} onChange={(e) => patch('ticket', 'logChannelId', e.target.value)} placeholder="Optional" /></label>
+                <label><span>Max. offene Tickets/User</span><input type="number" min="1" max="5" value={settings.ticket.maxOpenPerUser || 1} onChange={(e) => patch('ticket', 'maxOpenPerUser', Math.max(1, Math.min(5, Number(e.target.value) || 1)))} /></label>
+              </div>
+              <div className="form-grid">
+                <label className="check-option"><input type="checkbox" checked={settings.ticket.transcriptEnabled !== false} onChange={(e) => patch('ticket', 'transcriptEnabled', e.target.checked)} /><span>Transcript beim Schließen erstellen</span></label>
+                <label className="check-option"><input type="checkbox" checked={settings.ticket.closeDelete !== false} onChange={(e) => patch('ticket', 'closeDelete', e.target.checked)} /><span>Ticket-Channel nach dem Schließen löschen</span></label>
+              </div>
+              <label className="check-option"><input type="checkbox" checked={settings.ticket.allowUserClose !== false} onChange={(e) => patch('ticket', 'allowUserClose', e.target.checked)} /><span>Ticket-Ersteller darf selbst schließen</span></label>
             </SettingsCard>
 
             <SettingsCard kicker="STATUS" title="Bot-Status" description="Steuere den zentralen Status-Channel des Bots." active={settings.status.enabled} onToggle={() => patch('status', 'enabled', !settings.status.enabled)}>
