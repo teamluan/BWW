@@ -7,6 +7,7 @@ function Icon({ name }) {
     overview: 'M4 4h6v6H4zM14 4h6v6h-6zM4 14h6v6H4zM14 14h6v6h-6z',
     embed: 'M7 3h10a4 4 0 0 1 4 4v10a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4V7a4 4 0 0 1 4-4Zm0 5h10M7 13h6M7 17h4',
     giveaways: 'M6 3h12v18H6zM9 7h6M9 11h6M9 15h4',
+    tickets: 'M4 5h16v11H4zM8 20h8M9 16v4M15 16v4',
     honeypot: 'M12 3l7 3v5c0 4.7-3 8.4-7 10-4-1.6-7-5.3-7-10V6l7-3Zm0 5.5v4M12 16.5h.01',
     settings: 'M12 3v2M12 19v2M3 12h2M19 12h2M5.64 5.64l1.42 1.42M16.94 16.94l1.42 1.42M18.36 5.64l-1.42 1.42M7.06 16.94l-1.42 1.42M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8Z',
     server: 'M4 5h16v5H4zM4 14h16v5H4zM7 7.5h.01M7 16.5h.01',
@@ -43,6 +44,7 @@ export default function DashboardShell({ active, guild, children }) {
               <Link className={'nav-link ' + (active === 'embeds' ? 'active' : '')} href="/embeds"><Icon name="embed" /><span>Embeds V2</span></Link>
               <Link className={'nav-link ' + (active === 'honeypot' ? 'active' : '')} href="/honeypot"><Icon name="honeypot" /><span>Honeypot</span></Link>
               <Link className={'nav-link ' + (active === 'giveaways' ? 'active' : '')} href="/giveaways"><Icon name="giveaways" /><span>Giveaways</span></Link>
+              <Link className={'nav-link ' + (active === 'tickets' ? 'active' : '')} href="/tickets"><Icon name="tickets" /><span>Tickets</span></Link>
               <Link className={'nav-link ' + (active === 'settings' ? 'active' : '')} href="/settings"><Icon name="settings" /><span>Einstellungen</span></Link>
             </nav>
           </div>
