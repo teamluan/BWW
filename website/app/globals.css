@@ -214,6 +214,17 @@ a { color: inherit; text-decoration: none; }
 .welcome-status strong { font-size: 12px; }
 .welcome-status div span { margin-top: 3px; color: var(--subtle); font-size: 9px; }
 
+.stats-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
+.stat-card { min-height: 112px; display: flex; flex-direction: column; justify-content: center; gap: 5px; }
+.stat-card strong { font-size: 26px; letter-spacing: -.04em; }
+.stat-card small { color: var(--subtle); font-size: 10px; }
+.row-actions { display: flex; align-items: center; justify-content: flex-end; gap: 6px; flex-wrap: wrap; }
+.row-actions select { min-height: 34px; padding: 0 9px; border: 1px solid var(--border); border-radius: 9px; background: var(--panel-2); color: var(--text); font-size: 10px; }
+.row-actions button { min-height: 34px; padding: 0 10px; }
+.button-danger { min-height: 39px; display: inline-flex; align-items: center; justify-content: center; padding: 0 13px; border: 1px solid rgba(239,107,120,.25); border-radius: 10px; background: rgba(239,107,120,.08); color: #f0a7af; font-size: 11px; font-weight: 700; }
+.button-danger:hover { background: rgba(239,107,120,.14); border-color: rgba(239,107,120,.36); }
+.button-danger:disabled, .row-actions button:disabled { opacity: .5; cursor: not-allowed; }
+
 .metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 14px; }
 .metric-card {
   display: flex;
