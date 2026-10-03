@@ -1,8 +1,8 @@
-const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, MessageFlags } = require('discord.js');
+const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const { isAllowed } = require('../commands');
 const { getGuildSettings, saveGuildSettings, createDashboardCode, findEmbedInteraction, getGiveaway, listGiveaways: listGiveawayRecords } = require('../utils/database');
 const { embedV2, verifyComponents } = require('../utils/embeds');
-const { ticketContainer, createTicket, TICKET_REASONS } = require('../utils/tickets');
+const { ticketPanel, createTicket, getTicketByChannel, canManageTicket, claimTicket, setTicketPriority, lockTicket, closeTicket, reopenTicket, addTicketMember, removeTicketMember, renameTicket, buildCloseModal, buildUserModal, buildRenameModal, TICKET_REASONS, PRIORITIES } = require('../utils/tickets');
 const { createGiveaway, joinGiveaway, leaveGiveaway, finalizeGiveaway, rerollGiveaway, cancelGiveaway, updateGiveawayMessage } = require('../utils/giveaway');
 const { getPanel, setPanel, deletePanel, loadPanels, panelContainer, buttonResponseContainer, addPanelMessage } = require('../utils/panels');
 const { createStatusMessage, updateStatusMessage } = require('../utils/status');
@@ -21,6 +21,20 @@ function canCloseTicket(interaction, config) {
   if (config.ticket.roleId && interaction.member?.roles?.cache?.has(config.ticket.roleId)) return true;
   if (interaction.channel?.name?.startsWith('ticket-') && interaction.channel?.permissionOverwrites?.cache?.has(interaction.user.id)) return true;
   return false;
+}
+
+function hasTicketManagePermission(interaction, config) {
+  if (interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return true;
+  const roles = config.permissions.ticket || [];
+  return roles.some((id) => interaction.member?.roles?.cache?.has(id)) ||
+    Boolean(config.ticket.roleId && interaction.member?.roles?.cache?.has(config.ticket.roleId));
+}
+
+async function resolveTicketId(interaction, requestedId = null) {
+  const direct = String(requestedId || '').trim();
+  if (direct) return direct;
+  const ticket = await getTicketByChannel(interaction.channelId, interaction.guildId);
+  return ticket?.id || null;
 }
 
 module.exports = async (interaction, client) => {
@@ -126,73 +140,82 @@ module.exports = async (interaction, client) => {
     try { await interaction.member.roles.add(role); } catch { return interaction.reply({ content: '❌ Ich konnte die Rolle nicht vergeben. Prüfe meine Rollenposition.', ...EPHEMERAL }); }
     return interaction.reply({ content: '✅ Du wurdest erfolgreich verifiziert.', ...EPHEMERAL });
   }
-  if (interaction.isButton() && interaction.customId === 'bww_ticket_close') {
-    if (!canCloseTicket(interaction, config)) return interaction.reply({ content: '❌ Du darfst dieses Ticket nicht schließen.', ...EPHEMERAL });
-    await interaction.reply({ content: '🔒 Ticket wird geschlossen und gelöscht…', ...EPHEMERAL });
-    setTimeout(() => interaction.channel.delete().catch(() => {}), 2000);
-    return;
-  }
-  if (interaction.isButton() && interaction.customId.startsWith('bww_panel_')) {
-    const parts = interaction.customId.split('_');
-    const idx = parseInt(parts.pop(), 10);
-    const name = parts.slice(2).join('_');
-    const panel = getPanel(name);
-    if (!panel || !panel.buttons[idx]) return interaction.reply({ content: '❌ Panel oder Button nicht gefunden.', ...EPHEMERAL });
-    const button = panel.buttons[idx];
-    const container = buttonResponseContainer(name, button);
-    return interaction.reply({ components: [container], flags: EPHEMERAL_V2, allowedMentions: { parse: [] } });
-  }
-  if (interaction.isButton() && interaction.customId.startsWith('bww_giveaway_')) {
-    const prefixes = ['bww_giveaway_join_', 'bww_giveaway_leave_', 'bww_giveaway_end_', 'bww_giveaway_reroll_', 'bww_giveaway_cancel_'];
-    const prefix = prefixes.find((value) => interaction.customId.startsWith(value));
-    if (!prefix) return;
-    const id = interaction.customId.slice(prefix.length);
-    if (!id) return interaction.reply({ content: '❌ Ungültige Giveaway-ID.', ...EPHEMERAL });
+  if (interaction.isButton() && (
+    interaction.customId.startsWith('bww_ticket_') ||
+    interaction.customId === 'bww_ticket_close'
+  )) {
+    const customId = interaction.customId;
 
-    if (prefix === 'bww_giveaway_join_') {
-      const member = interaction.member || await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
-      const result = await joinGiveaway(id, member);
-      if (!result.ok) return interaction.reply({ content: '❌ ' + result.error, ...EPHEMERAL });
-      const stored = await getGiveaway(id, interaction.guildId);
-      if (stored) await updateGiveawayMessage(client, stored);
-      return interaction.reply({ content: '🎉 Du bist dabei! Deine Gewinnchance: ' + result.effectiveEntries + '.', ...EPHEMERAL });
+    if (customId === 'bww_ticket_close') {
+      const ticket = await require('../utils/database').getTicketByChannel(interaction.channelId, interaction.guildId);
+      if (!ticket) return interaction.reply({ content: '❌ Dieses Ticket ist nicht registriert.', ...EPHEMERAL });
+      if (!canManageTicket(interaction.member, config, ticket)) return interaction.reply({ content: '❌ Du darfst dieses Ticket nicht schließen.', ...EPHEMERAL });
+      return interaction.showModal(buildCloseModal(ticket.id));
     }
 
-    if (prefix === 'bww_giveaway_leave_') {
-      const member = interaction.member || await interaction.guild.members.fetch(interaction.user.id).catch(() => null);
-      const result = await leaveGiveaway(id, member);
-      if (!result.ok) return interaction.reply({ content: '❌ ' + result.error, ...EPHEMERAL });
-      const stored = await getGiveaway(id, interaction.guildId);
-      if (stored) await updateGiveawayMessage(client, stored);
-      return interaction.reply({ content: '👋 Du nimmst nicht mehr teil.', ...EPHEMERAL });
+    const match = customId.match(/^bww_ticket_(claim|close|add|remove|rename|lock|unlock|reopen)_([A-Za-z0-9-]+)$/);
+    if (!match) return;
+    const action = match[1];
+    const ticketId = match[2];
+    const ticket = await require('../utils/database').getTicket(ticketId, interaction.guildId);
+    if (!ticket) return interaction.reply({ content: '❌ Ticket nicht gefunden.', ...EPHEMERAL });
+
+    if (action === 'close') {
+      if (!canManageTicket(interaction.member, config, ticket)) return interaction.reply({ content: '❌ Du darfst dieses Ticket nicht schließen.', ...EPHEMERAL });
+      return interaction.showModal(buildCloseModal(ticket.id));
+    }
+    if (!hasTicketManagePermission(interaction, config) && action !== 'reopen') {
+      return interaction.reply({ content: '❌ Nur das Support-Team darf diese Ticket-Aktion ausführen.', ...EPHEMERAL });
     }
 
-    if (!hasGiveawayManagePermission(interaction, config)) return interaction.reply({ content: '❌ Du darfst dieses Giveaway nicht verwalten.', ...EPHEMERAL });
-    if (prefix === 'bww_giveaway_end_') {
-      const winners = await finalizeGiveaway(client, { id, guild_id: interaction.guildId });
-      return interaction.reply({ content: winners.length ? '✅ Giveaway beendet. Gewinner: ' + winners.map((id) => '<@' + id + '>').join(', ') : '✅ Giveaway beendet. Keine geeigneten Teilnehmer.', ...EPHEMERAL });
+    if (action === 'claim') {
+      const result = await claimTicket(client, ticket.id, interaction.member);
+      return interaction.reply({ content: result.ok ? (result.claimed ? '✅ Ticket wurde dir zugewiesen.' : '↩️ Ticket-Zuweisung entfernt.') : '❌ ' + result.error, ...EPHEMERAL });
     }
-    if (prefix === 'bww_giveaway_cancel_') {
-      const result = await cancelGiveaway(client, id);
-      return interaction.reply({ content: result.ok ? '✅ Giveaway abgebrochen.' : '❌ ' + result.error, ...EPHEMERAL });
+    if (action === 'add') return interaction.showModal(buildUserModal(ticket.id, 'add'));
+    if (action === 'remove') return interaction.showModal(buildUserModal(ticket.id, 'remove'));
+    if (action === 'rename') return interaction.showModal(buildRenameModal(ticket.id));
+    if (action === 'lock' || action === 'unlock') {
+      const result = await lockTicket(client, ticket.id, interaction.member, action === 'lock');
+      return interaction.reply({ content: result.ok ? (action === 'lock' ? '🔐 Ticket gesperrt.' : '🔓 Ticket entsperrt.') : '❌ ' + result.error, ...EPHEMERAL });
     }
-    const result = await rerollGiveaway(client, id);
-    if (!result.ok) return interaction.reply({ content: '❌ ' + result.error, ...EPHEMERAL });
-    return interaction.reply({ content: result.winners.length ? '🔁 Neue Gewinner: ' + result.winners.map((id) => '<@' + id + '>').join(', ') : '🔁 Es gibt keine weiteren geeigneten Teilnehmer.', ...EPHEMERAL });
+    if (action === 'reopen') {
+      const result = await reopenTicket(client, ticket.id, interaction.member);
+      return interaction.reply({ content: result.ok ? '✅ Ticket wieder geöffnet: ' + result.channel : '❌ ' + result.error, ...EPHEMERAL });
+    }
   }
-  if (interaction.isStringSelectMenu() && interaction.customId === 'bww_ticket_select') {
-    const reason = TICKET_REASONS.find(r => r.value === interaction.values[0]);
-    const res = await createTicket(interaction.guild, config, interaction.user, reason ? reason.label : interaction.values[0]);
-    if (!res.ok) return interaction.reply({ content: `❌ ${res.error}`, ...EPHEMERAL });
-    return interaction.reply({ content: `✅ Ticket erstellt: ${res.channel}`, ...EPHEMERAL });
+
+  if (interaction.isStringSelectMenu() && interaction.customId.startsWith('bww_ticket_priority_')) {
+    const ticketId = interaction.customId.slice('bww_ticket_priority_'.length);
+    const priority = interaction.values?.[0];
+    const result = await setTicketPriority(client, ticketId, interaction.member, priority);
+    return interaction.reply({ content: result.ok ? '⭐ Priorität auf ' + (PRIORITIES[priority]?.label || priority) + ' gesetzt.' : '❌ ' + result.error, ...EPHEMERAL });
   }
+
   if (!interaction.isChatInputCommand()) return;
   const command = interaction.commandName;
   if (command.startsWith('setup-')) {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen das Setup ändern.', ...EPHEMERAL });
     if (command === 'setup-welcome') { config.welcome = { enabled: true, channelId: interaction.options.getChannel('channel').id, title: interaction.options.getString('title') || '', message: interaction.options.getString('text', true) }; await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: '✅ Welcome-System gespeichert.', ...EPHEMERAL }); }
     if (command === 'setup-verify') { config.verify = { enabled: true, channelId: interaction.options.getChannel('channel').id, roleId: interaction.options.getRole('role').id, message: interaction.options.getString('text', true) }; await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: '✅ Verify-System gespeichert.', ...EPHEMERAL }); }
-    if (command === 'setup-ticket') { config.ticket = { enabled: true, categoryId: interaction.options.getChannel('kategorie').id, roleId: interaction.options.getRole('rolle').id }; await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: '✅ Ticket-System gespeichert.', ...EPHEMERAL }); }
+    if (command === 'setup-ticket') {
+      const category = interaction.options.getChannel('kategorie');
+      const role = interaction.options.getRole('rolle');
+      const logChannel = interaction.options.getChannel('log-channel');
+      config.ticket = {
+        ...(config.ticket || {}),
+        enabled: true,
+        categoryId: category.id,
+        roleId: role.id,
+        logChannelId: logChannel?.id || config.ticket?.logChannelId || '',
+        transcriptEnabled: interaction.options.getBoolean('transcript') ?? config.ticket?.transcriptEnabled ?? true,
+        closeDelete: interaction.options.getBoolean('close-delete') ?? config.ticket?.closeDelete ?? true,
+        allowUserClose: interaction.options.getBoolean('user-close') ?? config.ticket?.allowUserClose ?? true,
+        maxOpenPerUser: Math.max(1, Math.min(5, interaction.options.getInteger('max') || config.ticket?.maxOpenPerUser || 1))
+      };
+      await saveGuildSettings(interaction.guildId, config, interaction.user.id);
+      return interaction.reply({ content: '✅ Ticket-System gespeichert. Kategorie: ' + category + ' · Support: ' + role + (logChannel ? ' · Logs: ' + logChannel : ''), ...EPHEMERAL });
+    }
     if (command === 'setup-honeypot') {
       const active = interaction.options.getBoolean('aktiv', true);
       const channel = interaction.options.getChannel('channel');
@@ -247,7 +270,75 @@ module.exports = async (interaction, client) => {
     await interaction.reply({ content: '🔄 Bot wird neu gestartet…', ...EPHEMERAL }); setTimeout(() => process.exit(0), 1000); return;
   }
   if (command === 'wartung') {
-    if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
+    if (command.startsWith('ticket')) {
+    if (command === 'ticket') {
+      if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
+      try {
+        await interaction.channel.send({ components: [ticketPanel(config)], flags: V2 });
+        return interaction.reply({ content: '✅ Ticket-Panel gesendet.', ...EPHEMERAL });
+      } catch (err) {
+        return interaction.reply({ content: '❌ Ticket-Panel fehlgeschlagen: ' + err.message, ...EPHEMERAL });
+      }
+    }
+
+    if (!hasTicketManagePermission(interaction, config)) return interaction.reply({ content: '❌ Nur das Support-Team darf Tickets verwalten.', ...EPHEMERAL });
+
+    if (command === 'ticket-list') {
+      const status = interaction.options.getString('status') || null;
+      const rows = await require('../utils/database').listTickets(interaction.guildId, 25, status);
+      if (!rows.length) return interaction.reply({ content: '📭 Keine Tickets gefunden.', ...EPHEMERAL });
+      const lines = rows.map((row) => {
+        const icon = row.status === 'open' ? '🟢' : row.status === 'locked' ? '🔒' : '✅';
+        return icon + ' ' + row.id + ' — ' + row.reason + ' — <@' + row.owner_id + '>' +
+          (row.claimed_by ? ' — 👤 <@' + row.claimed_by + '>' : '');
+      });
+      const container = new ContainerBuilder().setAccentColor(0x2F3136);
+      container.addTextDisplayComponents(new TextDisplayBuilder().setContent(('## 🎫 Tickets (' + rows.length + ')\\n' + lines.join('\\n')).slice(0, 3900)));
+      return interaction.reply({ components: [container], flags: EPHEMERAL_V2 });
+    }
+
+    const id = await resolveTicketId(interaction, interaction.options.getString('id'));
+
+    if (command === 'ticket-reopen') {
+      if (!id) return interaction.reply({ content: '❌ Eine Ticket-ID ist erforderlich.', ...EPHEMERAL });
+      const result = await reopenTicket(client, id, interaction.member);
+      return interaction.reply({ content: result.ok ? '✅ Ticket wieder geöffnet: ' + result.channel : '❌ ' + result.error, ...EPHEMERAL });
+    }
+
+    if (!id) return interaction.reply({ content: '❌ Keine Ticket-ID angegeben und der aktuelle Channel ist kein Ticket.', ...EPHEMERAL });
+
+    if (command === 'ticket-close') {
+      return interaction.showModal(buildCloseModal(id));
+    }
+    if (command === 'ticket-claim') {
+      const result = await claimTicket(client, id, interaction.member);
+      return interaction.reply({ content: result.ok ? (result.claimed ? '✅ Ticket übernommen.' : '↩️ Ticket-Zuweisung entfernt.') : '❌ ' + result.error, ...EPHEMERAL });
+    }
+    if (command === 'ticket-add') {
+      const user = interaction.options.getUser('user', true);
+      const result = await addTicketMember(client, id, interaction.member, user.id);
+      return interaction.reply({ content: result.ok ? '✅ Benutzer hinzugefügt.' : '❌ ' + result.error, ...EPHEMERAL });
+    }
+    if (command === 'ticket-remove') {
+      const user = interaction.options.getUser('user', true);
+      const result = await removeTicketMember(client, id, interaction.member, user.id);
+      return interaction.reply({ content: result.ok ? '✅ Benutzer entfernt.' : '❌ ' + result.error, ...EPHEMERAL });
+    }
+    if (command === 'ticket-rename') {
+      const result = await renameTicket(client, id, interaction.member, interaction.options.getString('name', true));
+      return interaction.reply({ content: result.ok ? '✅ Ticket umbenannt: ' + result.name : '❌ ' + result.error, ...EPHEMERAL });
+    }
+    if (command === 'ticket-priority') {
+      const result = await setTicketPriority(client, id, interaction.member, interaction.options.getString('priority', true));
+      return interaction.reply({ content: result.ok ? '⭐ Priorität gesetzt.' : '❌ ' + result.error, ...EPHEMERAL });
+    }
+    if (command === 'ticket-lock' || command === 'ticket-unlock') {
+      const result = await lockTicket(client, id, interaction.member, command === 'ticket-lock');
+      return interaction.reply({ content: result.ok ? (command === 'ticket-lock' ? '🔐 Ticket gesperrt.' : '🔓 Ticket entsperrt.') : '❌ ' + result.error, ...EPHEMERAL });
+    }
+  }
+
+  if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
     const aktiv = interaction.options.getBoolean('aktiv', true);
     const grund = interaction.options.getString('grund') || '';
     const mode = aktiv ? 'maintenance' : 'online';
@@ -397,9 +488,6 @@ module.exports = async (interaction, client) => {
     }
   }
   if (!isAllowed(interaction, config)) return interaction.reply({ content: '❌ Du darfst diesen Command nicht benutzen.', ...EPHEMERAL });
-  if (command === 'ticket') {
-    try { await interaction.channel.send({ components: [ticketContainer(config)], flags: V2 }); return interaction.reply({ content: '✅ Ticket-Panel gesendet.', ...EPHEMERAL }); } catch (err) { return interaction.reply({ content: `❌ Ticket-Panel fehlgeschlagen: ${err.message}`, ...EPHEMERAL }); }
-  }
   if (['giveaway', 'giveaway-end', 'giveaway-reroll', 'giveaway-cancel', 'giveaway-list'].includes(command)) {
     if (!hasGiveawayManagePermission(interaction, config)) return interaction.reply({ content: '❌ Du darfst Giveaways nicht verwalten.', ...EPHEMERAL });
 
