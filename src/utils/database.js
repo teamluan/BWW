@@ -435,6 +435,96 @@ async function listGiveawayWinnerHistory(giveawayId) {
   return (await response.json()) || [];
 }
 
+async function getTicket(id, guildId = null) {
+  if (!id || !isConfigured()) return null;
+  const filters = ['id=eq.' + encodeURIComponent(id)];
+  if (guildId) filters.push('guild_id=eq.' + encodeURIComponent(guildId));
+  const response = await supabaseRequest(
+    'bww_tickets?select=*&' + filters.join('&') + '&limit=1',
+    { headers: { Prefer: 'return=representation' } }
+  );
+  return (await response.json())?.[0] || null;
+}
+
+async function getTicketByChannel(channelId, guildId = null) {
+  if (!channelId || !isConfigured()) return null;
+  const filters = ['channel_id=eq.' + encodeURIComponent(channelId)];
+  if (guildId) filters.push('guild_id=eq.' + encodeURIComponent(guildId));
+  const response = await supabaseRequest(
+    'bww_tickets?select=*&' + filters.join('&') + '&limit=1',
+    { headers: { Prefer: 'return=representation' } }
+  );
+  return (await response.json())?.[0] || null;
+}
+
+async function listTickets(guildId, limit = 100, status = null) {
+  if (!guildId || !isConfigured()) return [];
+  const filters = ['guild_id=eq.' + encodeURIComponent(guildId)];
+  if (status && ['open', 'locked', 'closed'].includes(status)) filters.push('status=eq.' + status);
+  const response = await supabaseRequest(
+    'bww_tickets?select=*&' + filters.join('&') + '&order=updated_at.desc&limit=' + Math.max(1, Math.min(100, Number(limit) || 100)),
+    { headers: { Prefer: 'return=representation' } }
+  );
+  return (await response.json()) || [];
+}
+
+async function createTicketRecord(data = {}) {
+  if (!isConfigured()) throw new Error('Supabase ist nicht konfiguriert.');
+  const response = await supabaseRequest('bww_tickets', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify(data)
+  });
+  return (await response.json())?.[0] || null;
+}
+
+async function updateTicketRecord(id, patch = {}) {
+  if (!id || !isConfigured()) return null;
+  const response = await supabaseRequest(
+    'bww_tickets?id=eq.' + encodeURIComponent(id),
+    {
+      method: 'PATCH',
+      headers: { Prefer: 'return=representation' },
+      body: JSON.stringify({ ...patch, updated_at: new Date().toISOString() })
+    }
+  );
+  return (await response.json())?.[0] || null;
+}
+
+async function countOpenTickets(guildId, ownerId) {
+  if (!guildId || !ownerId || !isConfigured()) return 0;
+  const response = await supabaseRequest(
+    'bww_tickets?select=id&guild_id=eq.' + encodeURIComponent(guildId) + '&owner_id=eq.' + encodeURIComponent(ownerId) + '&status=in.(open,locked)',
+    { headers: { Prefer: 'return=representation' } }
+  );
+  return (await response.json())?.length || 0;
+}
+
+async function addTicketEvent(ticketId, guildId, eventType, actorId = null, targetUserId = null, details = {}) {
+  if (!ticketId || !guildId || !isConfigured()) return null;
+  const response = await supabaseRequest('bww_ticket_events', {
+    method: 'POST',
+    headers: { Prefer: 'return=representation' },
+    body: JSON.stringify({
+      ticket_id: String(ticketId),
+      guild_id: String(guildId),
+      event_type: String(eventType).slice(0, 64),
+      actor_id: actorId ? String(actorId) : null,
+      target_user_id: targetUserId ? String(targetUserId) : null,
+      details: details && typeof details === 'object' ? details : {}
+    })
+  });
+  return (await response.json())?.[0] || null;
+}
+
+async function listTicketEvents(ticketId, limit = 100) {
+  if (!ticketId || !isConfigured()) return [];
+  const response = await supabaseRequest(
+    'bww_ticket_events?select=id,event_type,actor_id,target_user_id,details,created_at&ticket_id=eq.' + encodeURIComponent(ticketId) + '&order=created_at.desc&limit=' + Math.max(1, Math.min(200, Number(limit) || 100)),
+    { headers: { Prefer: 'return=representation' } }
+  );
+  return (await response.json()) || [];
+}
 async function getHoneypotEvents(guildId, limit = 50) {
   if (!guildId || !isConfigured()) return [];
   const response = await supabaseRequest(
@@ -461,6 +551,14 @@ module.exports = {
   findEmbedInteraction,
   recordHoneypotEvent,
   getHoneypotEvents,
+  getTicket,
+  getTicketByChannel,
+  listTickets,
+  createTicketRecord,
+  updateTicketRecord,
+  countOpenTickets,
+  addTicketEvent,
+  listTicketEvents,
   getGiveaway,
   listGiveaways,
   listActiveGiveaways,
