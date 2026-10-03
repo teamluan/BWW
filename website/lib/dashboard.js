@@ -24,7 +24,12 @@ export const DEFAULT_SETTINGS = {
   ticket: {
     enabled: false,
     categoryId: '',
-    roleId: ''
+    roleId: '',
+    logChannelId: '',
+    transcriptEnabled: true,
+    closeDelete: true,
+    allowUserClose: true,
+    maxOpenPerUser: 1
   },
   status: {
     enabled: false,
@@ -294,6 +299,17 @@ export async function getHoneypotEvents(guildId, limit = 50) {
   return (await response.json()) || [];
 }
 
+
+
+export async function listTickets(guildId, limit = 100, status = null) {
+  const filters = [`guild_id=eq.${encodeURIComponent(guildId)}`];
+  if (status && ['open', 'locked', 'closed'].includes(status)) filters.push(`status=eq.${status}`);
+  const response = await dbRequest(
+    `bww_tickets?select=*&${filters.join('&')}&order=updated_at.desc&limit=${Math.max(1, Math.min(100, Number(limit) || 100))}`,
+    { headers: { Prefer: 'return=representation' } }
+  );
+  return (await response.json()) || [];
+}
 
 export async function listGiveaways(guildId, limit = 100) {
   const response = await dbRequest(
