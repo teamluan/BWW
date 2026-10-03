@@ -8,6 +8,7 @@ const { startGiveawayLoop, createGiveaway, finalizeGiveaway, rerollGiveaway, can
 const { updateStatusMessage, ensureStatusMessage, formatUptime } = require('./utils/status');
 const { honeypot } = require('./utils/honeypot');
 const { isConfigured: databaseConfigured, getGuildSettings, upsertBotStatus, syncGuilds, markOffline, getPendingDashboardActions, claimDashboardAction, completeDashboardAction, failDashboardAction } = require('./utils/database');
+const { claimTicket, closeTicket, reopenTicket, lockTicket, setTicketPriority } = require('./utils/tickets');
 
 const token = process.env.DISCORD_TOKEN || '';
 if (!token) {
@@ -60,6 +61,28 @@ async function processDashboardActions(bot) {
         if (!id) throw new Error('Keine Giveaway-ID.');
         const result = await cancelGiveaway(bot, id);
         if (!result.ok) throw new Error(result.error);
+      } else if (['close_ticket', 'reopen_ticket', 'lock_ticket', 'unlock_ticket', 'claim_ticket', 'ticket_priority'].includes(claimed.action)) {
+        const id = String(payload.id || '').trim();
+        if (!id) throw new Error('Keine Ticket-ID.');
+        const memberId = String(claimed.created_by || '').replace(/\D/g, '');
+        if (!memberId) throw new Error('Kein gültiger Dashboard-Benutzer.');
+        const member = await guild.members.fetch(memberId).catch(() => null);
+        if (!member) throw new Error('Dashboard-Benutzer ist nicht auf dem Server.');
+        let result;
+        if (claimed.action === 'close_ticket') {
+          result = await closeTicket(bot, id, member, String(payload.reason || 'Über Dashboard geschlossen').slice(0, 1000));
+        } else if (claimed.action === 'reopen_ticket') {
+          result = await reopenTicket(bot, id, member);
+        } else if (claimed.action === 'lock_ticket') {
+          result = await lockTicket(bot, id, member, true);
+        } else if (claimed.action === 'unlock_ticket') {
+          result = await lockTicket(bot, id, member, false);
+        } else if (claimed.action === 'claim_ticket') {
+          result = await claimTicket(bot, id, member);
+        } else {
+          result = await setTicketPriority(bot, id, member, String(payload.priority || 'normal'));
+        }
+        if (!result?.ok) throw new Error(result?.error || 'Ticket-Aktion fehlgeschlagen.');
       } else {
         throw new Error('Unbekannte Dashboard-Aktion.');
       }
