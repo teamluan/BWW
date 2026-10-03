@@ -44,7 +44,12 @@ function sanitize(input) {
     ticket: {
       enabled: Boolean(source.ticket?.enabled),
       categoryId: cleanId(source.ticket?.categoryId),
-      roleId: cleanId(source.ticket?.roleId)
+      roleId: cleanId(source.ticket?.roleId),
+      logChannelId: cleanId(source.ticket?.logChannelId),
+      transcriptEnabled: source.ticket?.transcriptEnabled !== false,
+      closeDelete: source.ticket?.closeDelete !== false,
+      allowUserClose: source.ticket?.allowUserClose !== false,
+      maxOpenPerUser: Math.max(1, Math.min(5, Number(source.ticket?.maxOpenPerUser) || 1))
     },
     status: {
       enabled: Boolean(source.status?.enabled),
