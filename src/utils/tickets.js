@@ -146,7 +146,25 @@ function ticketContainer(ticket, guild) {
 }
 
 function ticketPanel(config) {
-  return ticketContainer(config);
+  const container = new ContainerBuilder().setAccentColor(0x2F3136);
+  container.addTextDisplayComponents(new TextDisplayBuilder().setContent(
+    '## 🎫 Ticket erstellen\n' +
+    'Wähle unten den passenden Grund aus. Danach kannst du dein Anliegen kurz beschreiben.\n\n' +
+    'Ein Mitarbeiter übernimmt das Ticket anschließend. Bereits offene Tickets werden berücksichtigt.'
+  ));
+  container.addSeparatorComponents(new SeparatorBuilder().setSpacing(SeparatorSpacingSize.Small).setDivider(true));
+  const select = new StringSelectMenuBuilder()
+    .setCustomId('bww_ticket_select')
+    .setPlaceholder('🎫 Grund auswählen')
+    .addOptions(TICKET_REASONS.map((reason) =>
+      new StringSelectMenuOptionBuilder()
+        .setLabel(reason.label)
+        .setValue(reason.value)
+        .setEmoji(reason.emoji)
+        .setDescription('Öffnet ein Ticket für: ' + reason.label)
+    ));
+  container.addActionRowComponents(new ActionRowBuilder().addComponents(select));
+  return container;
 }
 
 function buildPermissions(guild, config, ticket, locked = false) {
