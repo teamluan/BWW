@@ -506,12 +506,25 @@ async function reopenTicket(client, ticketId, member) {
   });
   await addTicketEvent(ticket.id, ticket.guild_id, 'reopened', member.id);
 
-  const sent = await channel.send({
-    components: [ticketContainer({ ...reopened, ...updated, channel_id: channel.id }, member.guild)],
-    flags: MessageFlags.IsComponentsV2,
-    allowedMentions: { parse: [] }
-  }).catch(() => null);
-  if (sent) await updateTicketRecord(ticket.id, { panel_message_id: sent.id });
+  let panelMessage = null;
+  if (updated?.panel_message_id && channel.isTextBased()) {
+    panelMessage = await channel.messages.fetch(updated.panel_message_id).catch(() => null);
+    if (panelMessage) {
+      await panelMessage.edit({
+        components: [ticketContainer({ ...reopened, ...updated, channel_id: channel.id }, member.guild)],
+        flags: MessageFlags.IsComponentsV2,
+        allowedMentions: { parse: [] }
+      }).catch(() => {});
+    }
+  }
+  if (!panelMessage) {
+    panelMessage = await channel.send({
+      components: [ticketContainer({ ...reopened, ...updated, channel_id: channel.id }, member.guild)],
+      flags: MessageFlags.IsComponentsV2,
+      allowedMentions: { parse: [] }
+    }).catch(() => null);
+  }
+  if (panelMessage) await updateTicketRecord(ticket.id, { panel_message_id: panelMessage.id });
   return { ok: true, ticket: updated, channel };
 }
 
