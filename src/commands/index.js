@@ -42,6 +42,34 @@ const commands = [
   { name: 'verify', description: 'Sendet das konfigurierte Verify-System.' },
 
   { name: 'ticket', description: 'Sendet das Ticket-Panel.' },
+  { name: 'ticket-list', description: 'Listet Tickets dieses Servers.', options: [
+    { name: 'status', description: 'Optionaler Statusfilter', type: 3, required: false, choices: [
+      { name: 'Offen', value: 'open' }, { name: 'Gesperrt', value: 'locked' }, { name: 'Geschlossen', value: 'closed' }
+    ]}
+  ]},
+  { name: 'ticket-close', description: 'Schließt ein Ticket.', options: [{ name: 'id', description: 'Optional: Ticket-ID. Im Ticket-Channel automatisch.', type: 3, required: false }]},
+  { name: 'ticket-claim', description: 'Übernimmt oder gibt ein Ticket frei.', options: [{ name: 'id', description: 'Optional: Ticket-ID. Im Ticket-Channel automatisch.', type: 3, required: false }]},
+  { name: 'ticket-reopen', description: 'Öffnet ein geschlossenes Ticket erneut.', options: [{ name: 'id', description: 'Ticket-ID', type: 3, required: true }]},
+  { name: 'ticket-add', description: 'Fügt einen Benutzer zum Ticket hinzu.', options: [
+    { name: 'user', description: 'Benutzer', type: 6, required: true },
+    { name: 'id', description: 'Optional: Ticket-ID. Im Ticket-Channel automatisch.', type: 3, required: false }
+  ]},
+  { name: 'ticket-remove', description: 'Entfernt einen Benutzer aus dem Ticket.', options: [
+    { name: 'user', description: 'Benutzer', type: 6, required: true },
+    { name: 'id', description: 'Optional: Ticket-ID. Im Ticket-Channel automatisch.', type: 3, required: false }
+  ]},
+  { name: 'ticket-rename', description: 'Benennt ein Ticket um.', options: [
+    { name: 'name', description: 'Neuer Name', type: 3, required: true },
+    { name: 'id', description: 'Optional: Ticket-ID. Im Ticket-Channel automatisch.', type: 3, required: false }
+  ]},
+  { name: 'ticket-priority', description: 'Ändert die Ticket-Priorität.', options: [
+    { name: 'priority', description: 'Neue Priorität', type: 3, required: true, choices: [
+      { name: 'Niedrig', value: 'low' }, { name: 'Normal', value: 'normal' }, { name: 'Hoch', value: 'high' }, { name: 'Dringend', value: 'urgent' }
+    ]},
+    { name: 'id', description: 'Optional: Ticket-ID. Im Ticket-Channel automatisch.', type: 3, required: false }
+  ]},
+  { name: 'ticket-lock', description: 'Sperrt ein Ticket für Benutzer.', options: [{ name: 'id', description: 'Optional: Ticket-ID. Im Ticket-Channel automatisch.', type: 3, required: false }]},
+  { name: 'ticket-unlock', description: 'Entsperrt ein Ticket.', options: [{ name: 'id', description: 'Optional: Ticket-ID. Im Ticket-Channel automatisch.', type: 3, required: false }]},
   { name: 'giveaway', description: 'Erstellt ein vollständiges Giveaway.', options: [
     { name: 'preis', description: 'Was wird verlost?', type: 3, required: true },
     { name: 'dauer', description: 'Dauer in Sekunden (5 bis 2592000)', type: 4, required: true },
@@ -108,8 +136,13 @@ const commands = [
     { name: 'text', description: 'Text des Verify-Embeds', type: 3, required: true }
   ]},
   { name: 'setup-ticket', description: 'Ticket-System konfigurieren.', options: [
-    { name: 'kategorie', description: 'Kategorie f\u00FCr Ticket-Kan\u00E4le', type: 7, required: true, channel_types: [4] },
-    { name: 'rolle', description: 'Ticket-Rolle mit Kanalzugriff', type: 8, required: true }
+    { name: 'kategorie', description: 'Kategorie für Ticket-Kanäle', type: 7, required: true, channel_types: [4] },
+    { name: 'rolle', description: 'Ticket-Rolle mit Kanalzugriff', type: 8, required: true },
+    { name: 'log-channel', description: 'Optionaler Channel für Ticket-Logs und Transcripts', type: 7, required: false, channel_types: [0] },
+    { name: 'transcript', description: 'Transcript beim Schließen erstellen', type: 5, required: false },
+    { name: 'close-delete', description: 'Ticket-Channel nach Schließen löschen', type: 5, required: false },
+    { name: 'user-close', description: 'Ticket-Ersteller darf selbst schließen', type: 5, required: false },
+    { name: 'max', description: 'Maximale offene Tickets pro Benutzer (1-5)', type: 4, required: false, min_value: 1, max_value: 5 }
   ]},
   { name: 'setup-honeypot', description: 'Honeypot konfigurieren und aktivieren/deaktivieren.', options: [
     { name: 'aktiv', description: 'true = aktiv, false = deaktiviert', type: 5, required: true },
