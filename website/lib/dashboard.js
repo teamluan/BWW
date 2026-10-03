@@ -156,12 +156,12 @@ export async function getDashboardSession() {
   if (!session) return null;
 
   const response = await dbRequest(
-    `bww_dashboard_logins?select=id,guild_id&id=eq.${encodeURIComponent(session.id)}&guild_id=eq.${encodeURIComponent(session.guildId)}&used_at=not.is.null&limit=1`,
+    `bww_dashboard_logins?select=id,guild_id,created_by&id=eq.${encodeURIComponent(session.id)}&guild_id=eq.${encodeURIComponent(session.guildId)}&used_at=not.is.null&limit=1`,
     { headers: { Prefer: 'return=representation' } }
   );
   const rows = await response.json();
   if (!rows?.length) return null;
-  return session;
+  return { ...session, actorId: rows[0].created_by || null };
 }
 
 export async function getSettings(guildId) {
