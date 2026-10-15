@@ -1,6 +1,6 @@
 const { ContainerBuilder, TextDisplayBuilder, SeparatorBuilder, SeparatorSpacingSize, ActionRowBuilder, ButtonBuilder, ButtonStyle, PermissionFlagsBits, MessageFlags, ModalBuilder, TextInputBuilder, TextInputStyle } = require('discord.js');
 const { isAllowed } = require('../commands');
-const { getGuildSettings, saveGuildSettings, createDashboardCode, findEmbedInteraction, getGiveaway, listGiveaways: listGiveawayRecords } = require('../utils/database');
+const { getGuildSettings, saveGuildSettings, findEmbedInteraction, getGiveaway, listGiveaways: listGiveawayRecords } = require('../utils/database');
 const { embedV2, verifyComponents } = require('../utils/embeds');
 const { ticketPanel, createTicket, getTicketByChannel, canManageTicket, claimTicket, setTicketPriority, lockTicket, closeTicket, reopenTicket, addTicketMember, removeTicketMember, renameTicket, buildCloseModal, buildUserModal, buildRenameModal, TICKET_REASONS, PRIORITIES } = require('../utils/tickets');
 const { createGiveaway, joinGiveaway, leaveGiveaway, finalizeGiveaway, rerollGiveaway, cancelGiveaway, updateGiveawayMessage } = require('../utils/giveaway');
@@ -339,14 +339,7 @@ module.exports = async (interaction, client) => {
     const name = interaction.options.getString('command', true); const role = interaction.options.getRole('role'); const allow = interaction.options.getBoolean('erlauben', true); config.permissions[name] ||= []; if (allow && !config.permissions[name].includes(role.id)) config.permissions[name].push(role.id); if (!allow) config.permissions[name] = config.permissions[name].filter(id => id !== role.id); await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: `✅ Rolle ${role} für /${name} ${allow ? 'erlaubt' : 'entfernt'}.`, ...EPHEMERAL });
   }
   if (command === 'dashboard-code') {
-    if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen einen Dashboard-Zugangscode erzeugen.', ...EPHEMERAL });
-    try {
-      const result = await createDashboardCode(interaction.guildId, interaction.user.id, 60);
-      const expires = Math.floor(new Date(result.expiresAt).getTime() / 1000);
-      return interaction.reply({ content: '🔐 Dashboard-Code: `' + result.code + '`\nGültig bis <t:' + expires + ':F>.\nÖffne danach die BWW-Website und gib den Code ein.', ...EPHEMERAL });
-    } catch (err) {
-      return interaction.reply({ content: '❌ Dashboard-Code konnte nicht erstellt werden: ' + err.message, ...EPHEMERAL });
-    }
+    return interaction.reply({ content: 'Das Web-Dashboard wurde entfernt.', ...EPHEMERAL });
   }
   if (command === 'restart') {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen den Bot neu starten.', ...EPHEMERAL });
