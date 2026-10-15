@@ -2,13 +2,11 @@ require('dotenv').config();
 const { Client, GatewayIntentBits, Partials, REST, Routes, Events, MessageFlags } = require('discord.js');
 const { commands } = require('./commands');
 const welcome = require('./events/welcome');
-const { prepareEmbedV2 } = require('./utils/embeds');
 const interactions = require('./events/interactions');
-const { startGiveawayLoop, createGiveaway, finalizeGiveaway, rerollGiveaway, cancelGiveaway } = require('./utils/giveaway');
+const { startGiveawayLoop } = require('./utils/giveaway');
 const { updateStatusMessage, ensureStatusMessage, formatUptime } = require('./utils/status');
 const { honeypot } = require('./utils/honeypot');
-const { isConfigured: databaseConfigured, getGuildSettings, upsertBotStatus, syncGuilds, markOffline, getPendingDashboardActions, claimDashboardAction, completeDashboardAction, failDashboardAction } = require('./utils/database');
-const { claimTicket, closeTicket, reopenTicket, lockTicket, setTicketPriority } = require('./utils/tickets');
+const { isConfigured: databaseConfigured, getGuildSettings, upsertBotStatus, syncGuilds, markOffline } = require('./utils/database');
 
 const token = process.env.DISCORD_TOKEN || '';
 if (!token) {
@@ -22,77 +20,6 @@ const client = new Client({
   partials: [Partials.GuildMember],
 });
 
-
-async function processDashboardActions(bot) {
-  if (!databaseConfigured()) return;
-  const actions = await getPendingDashboardActions(10);
-  for (const action of actions) {
-    const claimed = await claimDashboardAction(action.id);
-    if (!claimed) continue;
-    try {
-      const payload = claimed.payload || {};
-      const guild = bot.guilds.cache.get(claimed.guild_id);
-      if (!guild) throw new Error('Discord-Server ist beim Bot nicht verbunden.');
-
-      if (claimed.action === 'send_embed_v2') {
-        const channelId = String(payload.channelId || '').replace(/\D/g, '');
-        if (!channelId) throw new Error('Keine gültige Channel-ID.');
-        const channel = guild.channels.cache.get(channelId) || await guild.channels.fetch(channelId).catch(() => null);
-        if (!channel?.isTextBased()) throw new Error('Discord-Channel nicht gefunden oder nicht textbasiert.');
-        const prepared = await prepareEmbedV2(payload.data || {});
-        await channel.send({ components: [prepared.container], files: prepared.attachments, flags: MessageFlags.IsComponentsV2, allowedMentions: { parse: [] } });
-      } else if (claimed.action === 'create_giveaway') {
-        const channelId = String(payload.channelId || '').replace(/\D/g, '');
-        if (!channelId) throw new Error('Keine gültige Giveaway-Channel-ID.');
-        const channel = guild.channels.cache.get(channelId) || await guild.channels.fetch(channelId).catch(() => null);
-        if (!channel?.isTextBased()) throw new Error('Giveaway-Channel nicht gefunden oder nicht textbasiert.');
-        await createGiveaway(bot, channel, payload.data || {}, claimed.created_by || 'dashboard');
-      } else if (claimed.action === 'end_giveaway') {
-        const id = String(payload.id || '');
-        if (!id) throw new Error('Keine Giveaway-ID.');
-        await finalizeGiveaway(bot, { id, guild_id: claimed.guild_id });
-      } else if (claimed.action === 'reroll_giveaway') {
-        const id = String(payload.id || '');
-        if (!id) throw new Error('Keine Giveaway-ID.');
-        const result = await rerollGiveaway(bot, id);
-        if (!result.ok) throw new Error(result.error);
-      } else if (claimed.action === 'cancel_giveaway') {
-        const id = String(payload.id || '');
-        if (!id) throw new Error('Keine Giveaway-ID.');
-        const result = await cancelGiveaway(bot, id);
-        if (!result.ok) throw new Error(result.error);
-      } else if (['close_ticket', 'reopen_ticket', 'lock_ticket', 'unlock_ticket', 'claim_ticket', 'ticket_priority'].includes(claimed.action)) {
-        const id = String(payload.id || '').trim();
-        if (!id) throw new Error('Keine Ticket-ID.');
-        const memberId = String(claimed.created_by || '').replace(/\D/g, '');
-        if (!memberId) throw new Error('Kein gültiger Dashboard-Benutzer.');
-        const member = await guild.members.fetch(memberId).catch(() => null);
-        if (!member) throw new Error('Dashboard-Benutzer ist nicht auf dem Server.');
-        let result;
-        if (claimed.action === 'close_ticket') {
-          result = await closeTicket(bot, id, member, String(payload.reason || 'Über Dashboard geschlossen').slice(0, 1000));
-        } else if (claimed.action === 'reopen_ticket') {
-          result = await reopenTicket(bot, id, member);
-        } else if (claimed.action === 'lock_ticket') {
-          result = await lockTicket(bot, id, member, true);
-        } else if (claimed.action === 'unlock_ticket') {
-          result = await lockTicket(bot, id, member, false);
-        } else if (claimed.action === 'claim_ticket') {
-          result = await claimTicket(bot, id, member);
-        } else {
-          result = await setTicketPriority(bot, id, member, String(payload.priority || 'normal'));
-        }
-        if (!result?.ok) throw new Error(result?.error || 'Ticket-Aktion fehlgeschlagen.');
-      } else {
-        throw new Error('Unbekannte Dashboard-Aktion.');
-      }
-      await completeDashboardAction(claimed.id);
-    } catch (error) {
-      console.error('[BWW] Dashboard-Aktion fehlgeschlagen:', error.message);
-      await failDashboardAction(claimed.id, error.message).catch(() => {});
-    }
-  }
-}
 
 async function syncDatabase(bot, status = 'online') {
   if (!databaseConfigured()) return;
@@ -119,8 +46,6 @@ client.once(Events.ClientReady, async (bot) => {
   await syncDatabase(bot, 'online');
   setInterval(() => syncDatabase(bot, 'online'), 30 * 1000);
   startGiveawayLoop(client);
-  processDashboardActions(bot).catch(() => {});
-  setInterval(() => processDashboardActions(bot).catch(() => {}), 5000);
 
   for (const guild of client.guilds.cache.values()) {
     try {
