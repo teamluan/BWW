@@ -339,7 +339,7 @@ module.exports = async (interaction, client) => {
     const name = interaction.options.getString('command', true); const role = interaction.options.getRole('role'); const allow = interaction.options.getBoolean('erlauben', true); config.permissions[name] ||= []; if (allow && !config.permissions[name].includes(role.id)) config.permissions[name].push(role.id); if (!allow) config.permissions[name] = config.permissions[name].filter(id => id !== role.id); await saveGuildSettings(interaction.guildId, config, interaction.user.id); return interaction.reply({ content: `✅ Rolle ${role} für /${name} ${allow ? 'erlaubt' : 'entfernt'}.`, ...EPHEMERAL });
   }
   if (command === 'dashboard-code') {
-    return interaction.reply({ content: 'Das Web-Dashboard wurde entfernt.', ...EPHEMERAL });
+    return interaction.reply({ content: 'Das Web-Dashboard wurde entfernt. Nutze stattdessen die /setup-*, /config- und /settings-Befehle in Discord (gleiche Supabase-Einstellungen).', ...EPHEMERAL });
   }
   if (command === 'restart') {
     if (!interaction.memberPermissions?.has(PermissionFlagsBits.Administrator)) return interaction.reply({ content: '❌ Nur Administratoren dürfen den Bot neu starten.', ...EPHEMERAL });
