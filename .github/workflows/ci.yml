@@ -1,33 +1,28 @@
 name: CI
 
-on:
-  push:
-    branches: ["main", "development", "fix/**"]
-  pull_request:
-    branches: ["main", "development"]
+ on:
+   push:
+     branches: ["main", "development", "fix/**"]
+   pull_request:
+     branches: ["main", "development"]
 
-jobs:
-  check:
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-      - run: npm install --omit=dev --no-audit --no-fund
-      - run: npm run check
+ jobs:
+   check:
+     runs-on: ubuntu-24.04
+     steps:
+       - uses: actions/checkout@v5
+       - uses: actions/setup-node@v5
+         with:
+           node-version: 22
+       - run: npm install --omit=dev --no-audit --no-fund
+       - run: npm run check
 
-  website:
-    runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: website
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: website/package.json
-      - run: npm install --no-audit --no-fund
-      - run: npm run build
+   test:
+     runs-on: ubuntu-24.04
+     steps:
+       - uses: actions/checkout@v5
+       - uses: actions/setup-node@v5
+         with:
+           node-version: 22
+       - run: npm install --omit=dev --no-audit --no-fund
+       - run: npm test
